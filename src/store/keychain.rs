@@ -20,14 +20,39 @@ impl Default for KeychainBackend {
     }
 }
 
+fn format_unavailable_msg(inner: &str) -> String {
+    #[cfg(target_os = "linux")]
+    {
+        format!(
+            "{inner}\n\n\
+             hint: klef needs a running Secret Service implementation on Linux.\n\
+             - desktop session: install gnome-keyring or KWallet and ensure the daemon is running\n\
+             - server / CI / Docker: wait for v0.3 file backend (https://github.com/slewinus/klef/issues/12)\n\
+             see also https://github.com/slewinus/klef/issues/26 for the headless story."
+        )
+    }
+    #[cfg(target_os = "macos")]
+    {
+        format!(
+            "{inner}\n\n\
+             hint: this typically means the macOS Keychain is locked or not accessible.\n\
+             try opening Keychain Access.app and unlocking your login keychain."
+        )
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        inner.to_string()
+    }
+}
+
 fn map_err(e: keyring::Error) -> KlefError {
     use keyring::Error::{NoEntry, NoStorageAccess, PlatformFailure};
     match e {
         NoEntry => KlefError::KeyNotFound(String::new()),
         PlatformFailure(msg) | NoStorageAccess(msg) => {
-            KlefError::BackendUnavailable(msg.to_string())
+            KlefError::BackendUnavailable(format_unavailable_msg(&msg.to_string()))
         }
-        _ => KlefError::BackendUnavailable(e.to_string()),
+        other => KlefError::BackendUnavailable(format_unavailable_msg(&other.to_string())),
     }
 }
 
@@ -51,5 +76,31 @@ impl Backend for KeychainBackend {
             keyring::Error::NoEntry => KlefError::KeyNotFound(name.to_string()),
             other => map_err(other),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_unavailable_msg_preserves_inner() {
+        let msg = format_unavailable_msg("dbus error: Connection refused");
+        assert!(msg.contains("dbus error: Connection refused"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_hint_mentions_secret_service() {
+        let msg = format_unavailable_msg("anything");
+        assert!(msg.contains("Secret Service"));
+        assert!(msg.contains("v0.3 file backend"));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_hint_mentions_keychain_access() {
+        let msg = format_unavailable_msg("locked");
+        assert!(msg.contains("Keychain Access"));
     }
 }
