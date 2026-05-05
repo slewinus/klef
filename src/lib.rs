@@ -33,6 +33,13 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
         Command::Run { env_file, cmd } => commands::run::run(&store, &env_file, &cmd),
         Command::Completions { shell } => commands::completions::run(shell),
         Command::Status { format } => commands::status::run(&store, format),
+        Command::Import {
+            file,
+            prefix,
+            dry_run,
+            rewrite,
+            yes,
+        } => commands::import::run(&store, &file, prefix.as_deref(), dry_run, rewrite, yes),
     }
 }
 

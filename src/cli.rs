@@ -66,6 +66,18 @@ pub enum Command {
         #[arg(long, value_enum, default_value_t = StatusFormat::Text)]
         format: StatusFormat,
     },
+    /// Bulk import secrets from a .env file.
+    Import {
+        file: PathBuf,
+        #[arg(long, value_name = "PREFIX")]
+        prefix: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        rewrite: bool,
+        #[arg(long)]
+        yes: bool,
+    },
 }
 
 #[derive(Copy, Clone, Debug, clap::ValueEnum)]
