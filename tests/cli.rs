@@ -189,3 +189,44 @@ fn completions_bash_emits_function() {
         .success()
         .stdout(predicates::str::contains("_klef()"));
 }
+
+#[test]
+fn add_with_positional_value_gives_helpful_error() {
+    let d = TempDir::new().unwrap();
+    let secrets = d.path().join("secrets.json");
+    let index = d.path().join("index.json");
+
+    Command::cargo_bin("klef")
+        .unwrap()
+        .env("KLEF_TEST_BACKEND", format!("file:{}", secrets.display()))
+        .env("KLEF_INDEX_PATH", &index)
+        .arg("add")
+        .arg("stripe")
+        .arg("sk_live_xyz")
+        .assert()
+        .failure()
+        .code(64)
+        .stderr(predicates::str::contains(
+            "reads the secret value from a TTY prompt or stdin",
+        ))
+        .stderr(predicates::str::contains("echo -n value | klef add"));
+}
+
+#[test]
+fn edit_with_positional_value_gives_helpful_error() {
+    let d = TempDir::new().unwrap();
+    let secrets = d.path().join("secrets.json");
+    let index = d.path().join("index.json");
+
+    Command::cargo_bin("klef")
+        .unwrap()
+        .env("KLEF_TEST_BACKEND", format!("file:{}", secrets.display()))
+        .env("KLEF_INDEX_PATH", &index)
+        .arg("edit")
+        .arg("stripe")
+        .arg("newvalue")
+        .assert()
+        .failure()
+        .code(64)
+        .stderr(predicates::str::contains("klef edit"));
+}
