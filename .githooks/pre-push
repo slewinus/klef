@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# klef pre-push hook: run the full test suite.
+set -e
+
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${TMPDIR:-/tmp}/klef-target}"
+
+echo "▸ cargo test"
+cargo test --all-features
+
+echo "✓ pre-push OK"

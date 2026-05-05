@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# klef pre-commit hook: file size guard + format check + clippy.
+set -e
+
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${TMPDIR:-/tmp}/klef-target}"
+
+echo "▸ checking non-doc files stay <= 300 lines"
+scripts/check-lines.sh
+
+echo "▸ cargo fmt --check"
+cargo fmt --all -- --check
+
+echo "▸ cargo clippy"
+cargo clippy --all-targets --all-features -- -D warnings
+
+echo "✓ pre-commit OK"
