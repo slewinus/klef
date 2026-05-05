@@ -5,23 +5,29 @@ use thiserror::Error;
 pub enum KlefError {
     #[error("backend unavailable: {0}")]
     BackendUnavailable(String),
-    #[error("backend access denied")]
+    #[error("backend access denied. Check Keychain permissions and retry")]
     BackendDenied,
     #[error("index file corrupt at {path}: {reason}")]
     IndexCorrupt { path: PathBuf, reason: String },
+    // Note: IndexWrite and Io both wrap io::Error and so neither uses #[from] —
+    // call sites must explicitly choose. IndexWrite is reserved for the atomic
+    // index write/rename in store::index; every other I/O failure (stdin, stdout,
+    // .env reads, etc.) goes through Io. See docs/design §7.1.
     #[error("failed to write index: {0}")]
     IndexWrite(std::io::Error),
     #[error("i/o error: {0}")]
     Io(std::io::Error),
-    #[error("key '{0}' not found")]
+    #[error("key '{0}' not found. List available keys: klef list")]
     KeyNotFound(String),
     #[error("key '{0}' already exists (use --force to overwrite)")]
     KeyAlreadyExists(String),
-    #[error("invalid key name '{0}': must be alphanumeric, dash, or underscore")]
+    #[error("invalid key name '{0}': use only alphanumeric, dash, or underscore")]
     InvalidKeyName(String),
-    #[error("env file not found: {0}")]
+    #[error("env file not found: {0}. Check the path or pass --env-file <FILE>")]
     EnvFileNotFound(PathBuf),
-    #[error("broken reference: {var}=klef:{key} — key not found")]
+    #[error(
+        "broken reference: {var}=klef:{key} - key '{key}' not found. Add it with: klef add {key}"
+    )]
     BrokenReference { var: String, key: String },
 }
 
