@@ -95,6 +95,10 @@ pub enum Command {
         #[arg(long)]
         yes: bool,
     },
+    /// Internal: print one stored key name per line. Used by shell completion scripts.
+    /// Hidden from --help.
+    #[command(name = "_names", hide = true)]
+    Names,
 }
 
 #[derive(Copy, Clone, Debug, clap::ValueEnum)]
