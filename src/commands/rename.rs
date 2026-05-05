@@ -1,11 +1,14 @@
 use crate::error::KlefError;
 use crate::store::Store;
 
-/// Stub for the rename command.
+/// Rename a secret.
 ///
 /// # Errors
 ///
-/// Always returns `BackendUnavailable` as this is a stub.
-pub fn run(_store: &Store, _old: &str, _new: &str) -> Result<(), KlefError> {
-    Err(KlefError::BackendUnavailable("not implemented".into()))
+/// Returns an error if the key does not exist, already exists under the new name,
+/// or if the backend or index fails.
+pub fn run(store: &Store, old: &str, new: &str) -> Result<(), KlefError> {
+    store.rename(old, new)?;
+    println!("✓ '{old}' renamed to '{new}'");
+    Ok(())
 }
