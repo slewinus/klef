@@ -29,6 +29,12 @@ pub enum Command {
     List {
         #[arg(long, value_enum, default_value_t = ListFormat::Table)]
         format: ListFormat,
+        /// Add ADDED column showing when each key was first added.
+        #[arg(long, short = 'v')]
+        verbose: bool,
+        /// Filter entries by case-insensitive substring match on name or note.
+        #[arg(long, value_name = "PATTERN")]
+        filter: Option<String>,
     },
     /// Remove a key.
     #[command(alias = "remove")]

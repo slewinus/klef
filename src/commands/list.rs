@@ -2,21 +2,37 @@ use crate::cli::ListFormat;
 use crate::error::KlefError;
 use crate::store::Store;
 
-/// List all stored keys in the requested format (table or JSON).
+/// Run the list command.
 ///
 /// # Errors
-///
-/// Returns an error if the store fails to load the index or secrets.
-pub fn run(store: &Store, format: ListFormat) -> Result<(), KlefError> {
-    let entries = store.list()?;
+/// Returns an error if the index can't be loaded.
+pub fn run(
+    store: &Store,
+    format: ListFormat,
+    verbose: bool,
+    filter: Option<&str>,
+) -> Result<(), KlefError> {
+    let mut entries = store.list()?;
+
+    if let Some(pat) = filter {
+        let needle = pat.to_lowercase();
+        entries.retain(|(name, meta)| {
+            name.to_lowercase().contains(&needle)
+                || meta
+                    .note
+                    .as_deref()
+                    .is_some_and(|n| n.to_lowercase().contains(&needle))
+        });
+    }
+
     match format {
-        ListFormat::Table => print_table(&entries),
+        ListFormat::Table => print_table(&entries, verbose),
         ListFormat::Json => print_json(&entries)?,
     }
     Ok(())
 }
 
-fn print_table(entries: &[(String, crate::store::KeyMeta)]) {
+fn print_table(entries: &[(String, crate::store::KeyMeta)], verbose: bool) {
     if entries.is_empty() {
         println!("(no keys stored)");
         return;
@@ -33,11 +49,33 @@ fn print_table(entries: &[(String, crate::store::KeyMeta)]) {
         .max()
         .unwrap_or(7)
         .max(7);
-    println!("{:<name_w$}  {:<var_w$}  NOTE", "NAME", "ENV_VAR");
-    for (name, meta) in entries {
-        let note = meta.note.as_deref().unwrap_or("-");
-        println!("{name:<name_w$}  {:<var_w$}  {note}", meta.env_var);
+
+    if verbose {
+        let added_w = "ADDED".len();
+        println!(
+            "{:<name_w$}  {:<var_w$}  {:<added_w$}  NOTE",
+            "NAME", "ENV_VAR", "ADDED"
+        );
+        for (name, meta) in entries {
+            let note = meta.note.as_deref().unwrap_or("-");
+            let added = format_date(&meta.added_at);
+            println!(
+                "{name:<name_w$}  {:<var_w$}  {added:<added_w$}  {note}",
+                meta.env_var
+            );
+        }
+    } else {
+        println!("{:<name_w$}  {:<var_w$}  NOTE", "NAME", "ENV_VAR");
+        for (name, meta) in entries {
+            let note = meta.note.as_deref().unwrap_or("-");
+            println!("{name:<name_w$}  {:<var_w$}  {note}", meta.env_var);
+        }
     }
+}
+
+fn format_date(t: &time::OffsetDateTime) -> String {
+    // Output `YYYY-MM-DD` — date only, no time. Stable across locales.
+    format!("{:04}-{:02}-{:02}", t.year(), u8::from(t.month()), t.day())
 }
 
 fn print_json(entries: &[(String, crate::store::KeyMeta)]) -> Result<(), KlefError> {
@@ -51,4 +89,22 @@ fn print_json(entries: &[(String, crate::store::KeyMeta)]) -> Result<(), KlefErr
     })?;
     println!("{s}");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::macros::datetime;
+
+    #[test]
+    fn format_date_renders_iso_yyyy_mm_dd() {
+        let d = datetime!(2026-05-05 19:57:00 UTC);
+        assert_eq!(format_date(&d), "2026-05-05");
+    }
+
+    #[test]
+    fn format_date_pads_single_digit_month_day() {
+        let d = datetime!(2026-01-09 00:00:00 UTC);
+        assert_eq!(format_date(&d), "2026-01-09");
+    }
 }

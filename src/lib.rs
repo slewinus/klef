@@ -25,7 +25,11 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
         } => commands::add::run(&store, &name, r#as, note, force),
         Command::Get { name } => commands::get::run_get(&store, &name),
         Command::Show { name } => commands::get::run_show(&store, &name),
-        Command::List { format } => commands::list::run(&store, format),
+        Command::List {
+            format,
+            verbose,
+            filter,
+        } => commands::list::run(&store, format, verbose, filter.as_deref()),
         Command::Rm { name, yes } => commands::rm::run(&store, &name, yes),
         Command::Edit { name, note, r#as } => commands::edit::run(&store, &name, r#as, note),
         Command::Rename { old, new } => commands::rename::run(&store, &old, &new),
