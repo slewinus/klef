@@ -31,6 +31,7 @@ pub enum Command {
         format: ListFormat,
     },
     /// Remove a key.
+    #[command(alias = "remove")]
     Rm {
         name: String,
         #[arg(long)]
