@@ -20,6 +20,10 @@ pub enum Command {
         note: Option<String>,
         #[arg(long)]
         force: bool,
+        /// Read the secret value from FILE instead of stdin/prompt.
+        /// Trailing whitespace is stripped (matches stdin/prompt behavior).
+        #[arg(long, value_name = "FILE")]
+        value_from_file: Option<PathBuf>,
     },
     /// Print the value of a key on stdout.
     Get { name: String },
@@ -29,6 +33,12 @@ pub enum Command {
     List {
         #[arg(long, value_enum, default_value_t = ListFormat::Table)]
         format: ListFormat,
+        /// Add ADDED column showing when each key was first added.
+        #[arg(long, short = 'v')]
+        verbose: bool,
+        /// Filter entries by case-insensitive substring match on name or note.
+        #[arg(long, value_name = "PATTERN")]
+        filter: Option<String>,
     },
     /// Remove a key.
     #[command(alias = "remove")]
@@ -44,9 +54,15 @@ pub enum Command {
         note: Option<String>,
         #[arg(long, value_name = "VAR")]
         r#as: Option<String>,
+        /// Read the new secret value from FILE instead of stdin/prompt.
+        /// Trailing whitespace is stripped (matches stdin/prompt behavior).
+        #[arg(long, value_name = "FILE")]
+        value_from_file: Option<PathBuf>,
     },
     /// Rename a key.
     Rename { old: String, new: String },
+    /// Shortcut for `klef edit <name> --note <text>`.
+    SetNote { name: String, note: String },
     /// Print `export VAR=value` lines for eval.
     Export {
         names: Vec<String>,

@@ -1,6 +1,7 @@
 use crate::error::KlefError;
 use crate::store::Store;
 use std::io::{IsTerminal, Read};
+use std::path::Path;
 
 /// Add or update a secret, prompting for value via terminal or stdin.
 ///
@@ -14,14 +15,18 @@ pub fn run(
     env_var: Option<String>,
     note: Option<String>,
     force: bool,
+    value_from_file: Option<&Path>,
 ) -> Result<(), KlefError> {
-    let value = read_value(name)?;
+    let value = read_value(name, value_from_file)?;
     store.add(name, value.trim(), env_var, note, force)?;
     println!("✓ '{name}' saved");
     Ok(())
 }
 
-fn read_value(name: &str) -> Result<String, KlefError> {
+fn read_value(name: &str, value_from_file: Option<&Path>) -> Result<String, KlefError> {
+    if let Some(path) = value_from_file {
+        return std::fs::read_to_string(path).map_err(KlefError::Io);
+    }
     if std::io::stdin().is_terminal() {
         let prompt = format!("Paste value for '{name}': ");
         let v = rpassword::prompt_password(prompt)
@@ -38,6 +43,7 @@ fn read_value(name: &str) -> Result<String, KlefError> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::store::{MemoryBackend, Store};
     use tempfile::tempdir;
 
@@ -58,5 +64,16 @@ mod tests {
         assert_eq!(m.env_var, "STRIPE_API_KEY");
         assert_eq!(m.note.as_deref(), Some("hi"));
         assert_eq!(s.get_value("stripe").unwrap(), "v");
+    }
+
+    #[test]
+    fn read_value_from_file_works() {
+        let d = tempdir().unwrap();
+        let p = d.path().join("secret.txt");
+        std::fs::write(&p, "sk_live_xyz\n").unwrap();
+        let v = read_value("test", Some(&p)).unwrap();
+        // Note: the consumer trims later via store.add, so the helper itself
+        // doesn't strip. Here we just confirm the file content is read.
+        assert_eq!(v, "sk_live_xyz\n");
     }
 }
