@@ -20,6 +20,10 @@ pub enum Command {
         note: Option<String>,
         #[arg(long)]
         force: bool,
+        /// Read the secret value from FILE instead of stdin/prompt.
+        /// Trailing whitespace is stripped (matches stdin/prompt behavior).
+        #[arg(long, value_name = "FILE")]
+        value_from_file: Option<PathBuf>,
     },
     /// Print the value of a key on stdout.
     Get { name: String },
@@ -50,9 +54,15 @@ pub enum Command {
         note: Option<String>,
         #[arg(long, value_name = "VAR")]
         r#as: Option<String>,
+        /// Read the new secret value from FILE instead of stdin/prompt.
+        /// Trailing whitespace is stripped (matches stdin/prompt behavior).
+        #[arg(long, value_name = "FILE")]
+        value_from_file: Option<PathBuf>,
     },
     /// Rename a key.
     Rename { old: String, new: String },
+    /// Shortcut for `klef edit <name> --note <text>`.
+    SetNote { name: String, note: String },
     /// Print `export VAR=value` lines for eval.
     Export {
         names: Vec<String>,

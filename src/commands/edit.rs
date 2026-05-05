@@ -1,6 +1,7 @@
 use crate::error::KlefError;
 use crate::store::Store;
 use std::io::{IsTerminal, Read};
+use std::path::Path;
 
 /// Edit a key: update value (no flags) or metadata only (with --note and/or --as).
 ///
@@ -13,9 +14,10 @@ pub fn run(
     name: &str,
     env_var: Option<String>,
     note: Option<String>,
+    value_from_file: Option<&Path>,
 ) -> Result<(), KlefError> {
-    let _meta = store.meta(name)?; // confirms key exists
-    let meta_only = env_var.is_some() || note.is_some();
+    let meta = store.meta(name)?; // confirms key exists
+    let meta_only = (env_var.is_some() || note.is_some()) && value_from_file.is_none();
 
     if meta_only {
         let note_update = note.map(Some);
@@ -24,7 +26,9 @@ pub fn run(
         return Ok(());
     }
 
-    let value = if std::io::stdin().is_terminal() {
+    let value = if let Some(path) = value_from_file {
+        std::fs::read_to_string(path).map_err(KlefError::Io)?
+    } else if std::io::stdin().is_terminal() {
         rpassword::prompt_password(format!("New value for '{name}': "))
             .map_err(|e| KlefError::BackendUnavailable(e.to_string()))?
     } else {
@@ -34,7 +38,9 @@ pub fn run(
             .map_err(KlefError::Io)?;
         buf
     };
-    store.add(name, value.trim(), None, None, true)?;
+    // Preserve the existing note unless explicitly overridden
+    let note_to_use = note.or_else(|| meta.note.clone());
+    store.add(name, value.trim(), env_var, note_to_use, true)?;
     println!("✓ '{name}' value updated");
     Ok(())
 }
