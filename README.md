@@ -17,24 +17,40 @@ Un CLI local qui :
 ## Workflow type
 
 ```bash
-# Sauvegarder une clé
+# Sauvegarder une clé (prompt interactif)
 klef add stripe
 > Colle ta clé : sk_live_xxxxx
 > ✓ Enregistrée sous "stripe"
 
-# Récupérer
+# Récupérer une clé
 klef get stripe
 sk_live_xxxxx
 
-# Injecter dans le shell courant
-eval $(klef export stripe anthropic openai)
+# Lister les clés stockées
+klef list
+
+# Injecter dans un `.env` et exécuter une commande
+# .env contient : STRIPE_KEY=klef:stripe
+klef run -- npm start
 ```
+
+## Commandes
+
+- `klef add <name>` — Ajouter une clé (prompt TTY ou stdin).
+- `klef get <name>` — Afficher la valeur (pipeable).
+- `klef show <name>` — Afficher la valeur + métadonnées.
+- `klef list [--format table|json]` — Lister les clés stockées (sans les valeurs).
+- `klef rm <name>` — Supprimer une clé.
+- `klef edit <name>` — Changer la valeur ou les métadonnées.
+- `klef rename <old> <new>` — Renommer une clé.
+- `klef export <name>... [--format shell|dotenv]` — Émettre des lignes `export`.
+- `klef run [--env-file FILE] -- <cmd>` — Résoudre les références `klef:<name>` dans `.env` et exécuter `<cmd>`.
 
 ## Stack
 
 - **Langage** : Rust (édition 2024)
 - **Stockage** : macOS Keychain (crate `keyring`)
-- **CLI** : `clap` (à valider en brainstorming)
+- **CLI** : `clap`
 - **Pas de serveur, pas de cloud, pas de compte.**
 
 ## Dev
@@ -45,12 +61,19 @@ eval $(klef export stripe anthropic openai)
 
 # Build / test
 cargo build
-cargo test
+cargo test --all-features
 cargo run -- --help
 ```
+
+`cargo test --all-features` lance 39 tests : tests unitaires en `src/lib.rs` et tests E2E en `tests/cli.rs`.
 
 Les hooks git (`fmt`, `clippy`, `test`) sont versionnés dans `.githooks/`.
 
 ## Statut
 
-🚧 En conception — voir [SPEC.md](./SPEC.md) et [ROADMAP.md](./ROADMAP.md).
+✅ v0.1 MVP — 9 commandes implémentées, 39 tests passing.
+
+- **Spec** : [docs/design/2026-05-05-mvp-design.md](./docs/design/2026-05-05-mvp-design.md)
+- **Plan d'implémentation** : [docs/plans/2026-05-05-mvp-implementation.md](./docs/plans/2026-05-05-mvp-implementation.md)
+- **Plateformes** : macOS (Keychain) + Linux desktop (Secret Service via `keyring`)
+- **Hors-scope v0.1** : Linux headless, Windows, synchro multi-machines
