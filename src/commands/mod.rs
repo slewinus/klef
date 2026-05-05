@@ -5,6 +5,7 @@ pub mod export;
 pub mod get;
 pub mod import;
 pub mod list;
+pub mod names;
 pub mod rename;
 pub mod rm;
 pub mod run;

@@ -27,17 +27,31 @@ Un CLI local qui :
 ## Démo
 
 ```bash
-# 1. Sauvegarder ta clé Stripe (prompt masqué façon sudo)
-$ klef add stripe
-Paste value for 'stripe': ********
-✓ 'stripe' saved
-
-# 2. Dans le .env du projet, remplacer la vraie clé par une référence
+# Tu as un .env qui traîne avec des secrets en clair :
 $ cat .env
-STRIPE_KEY=klef:stripe
+STRIPE_API_KEY=sk_live_xyz
+ANTHROPIC_API_KEY=sk-ant-zzz
 PORT=3000
 
-# 3. Lancer ton app — klef résout, exec ta commande
+# Une commande pour tout importer dans le Keychain et réécrire le .env en références :
+$ klef import .env --rewrite
+ENV VAR             KLEF NAME             VALUE
+STRIPE_API_KEY      stripe-api-key        sk_l*** (16 chars)
+ANTHROPIC_API_KEY   anthropic-api-key     sk-a*** (12 chars)
+PORT                port                  *** (4 chars)
+Import 3 key(s)? [y/N] y
+✓ STRIPE_API_KEY → klef:stripe-api-key
+✓ ANTHROPIC_API_KEY → klef:anthropic-api-key
+✓ PORT → klef:port
+Imported 3 key(s).
+Rewrote .env (3 reference(s) replaced).
+
+$ cat .env
+STRIPE_API_KEY=klef:stripe-api-key
+ANTHROPIC_API_KEY=klef:anthropic-api-key
+PORT=klef:port
+
+# Maintenant lance ton app comme avant — klef résout les références à la volée :
 $ klef run -- node app.js
 Server on port 3000, Stripe wired ✓
 ```
@@ -73,20 +87,25 @@ klef completions bash > /usr/local/etc/bash_completion.d/klef
 klef completions fish > ~/.config/fish/completions/klef.fish
 ```
 
+> La complétion statique des sous-commandes et des flags fonctionne dès aujourd'hui. La complétion dynamique des noms de clés (ex. `klef get <TAB>`) est suivie dans [#28](https://github.com/slewinus/klef/issues/28) et pas encore implémentée.
+
 ## Commandes
 
 | Commande | Rôle |
 |---|---|
-| `klef add <name>` | Ajouter une clé (prompt TTY ou stdin). |
+| `klef add <name>` | Ajouter une clé (prompt TTY ou stdin). Avec `--value-from-file <FILE>` pour les secrets multi-lignes (PEM, JSON). |
 | `klef get <name>` | Afficher la valeur (pipeable). |
 | `klef show <name>` | Valeur + métadonnées. |
-| `klef list [--format table\|json]` | Lister les clés (jamais les valeurs). |
+| `klef list [--format table\|json] [-v\|--verbose] [--filter PATTERN]` | Lister les clés (jamais les valeurs). `--verbose` ajoute la date d'ajout, `--filter` cherche en sous-chaîne. |
 | `klef rm <name>` (alias `remove`) | Supprimer une clé. |
-| `klef edit <name>` | Changer la valeur ou les métadonnées. |
+| `klef edit <name>` | Changer la valeur ou les métadonnées. `--value-from-file` accepté ici aussi. |
+| `klef set-note <name> <text>` | Raccourci pour `edit --note`. |
 | `klef rename <old> <new>` | Renommer une clé. |
 | `klef export <name>... [--format shell\|dotenv]` | Émettre des lignes `export`. |
+| `klef import <file.env> [--prefix P] [--dry-run] [--rewrite] [--yes]` | Bulk-import depuis un `.env` existant. `--rewrite` remplace les valeurs littérales par des références `klef:` dans le fichier source. |
 | `klef run [--env-file FILE] -- <cmd>` | Résoudre `klef:<name>` dans `.env` et exec `<cmd>`. |
-| `klef completions <shell>` | Générer le script d'auto-complétion shell. |
+| `klef status [--format text\|json]` | Diagnostic : version, backend, index path, nombre de clés, désync. Exit 1 si désync. |
+| `klef completions <shell>` | Générer le script d'auto-complétion. |
 
 `klef --help` ou `klef <cmd> --help` pour les détails de chaque option.
 
@@ -105,7 +124,7 @@ klef completions fish > ~/.config/fish/completions/klef.fish
 
 # Build / test
 cargo build
-cargo test --all-features      # 43 tests : unit + E2E
+cargo test --all-features      # 76 tests : unit + E2E
 cargo run -- --help
 ```
 
@@ -120,11 +139,22 @@ Les hooks git (`fmt`, `clippy`, `tests`, line-cap < 300 lignes/fichier) sont ver
 
 ## Statut
 
-✅ **v0.1 MVP** — 10 commandes, 43 tests passing, killer feature `klef run` validée bout-en-bout.
+✅ **v0.1 MVP** taggé (mai 2026) — la base : 10 commandes, Keychain backend, killer feature `klef run`.
+
+🚧 **v0.2 en cours** sur `main` (untagged) — ajouts depuis v0.1 :
+- `klef import .env` pour onboarder un projet existant en une commande
+- `klef status` pour le diagnostic
+- `klef set-note` raccourci
+- `klef list --verbose` (date d'ajout) + `--filter` (recherche)
+- `--value-from-file` pour les secrets multi-lignes (PEM, certs, JSON)
+- Hints actionnables quand le Keychain n'est pas disponible (Linux + macOS)
+- Alias `klef remove` pour `klef rm`
+
+Reste avant de tagger v0.2.0 : Homebrew formula ([#10](https://github.com/slewinus/klef/issues/10)), binaires pré-compilés ([#11](https://github.com/slewinus/klef/issues/11)), `klef discover` ([#21](https://github.com/slewinus/klef/issues/21)).
 
 - **Plateformes supportées** : macOS (Keychain natif) + Linux desktop (Secret Service via gnome-keyring / KWallet).
-- **Hors-scope v0.1** : Linux headless / WSL sans desktop, Windows, synchro multi-machines, GUI.
-- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones) — v0.1 (release polish), v0.2 (`klef import`, Homebrew, binaires pré-compilés), v0.3+ (backend chiffré `age`, sync iCloud, GUI).
+- **Hors-scope v0.2** : Linux headless / WSL sans desktop, Windows, synchro multi-machines, GUI.
+- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones).
 
 ## Licence
 
