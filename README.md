@@ -81,7 +81,7 @@ klef completions fish > ~/.config/fish/completions/klef.fish
 | `klef get <name>` | Afficher la valeur (pipeable). |
 | `klef show <name>` | Valeur + métadonnées. |
 | `klef list [--format table\|json]` | Lister les clés (jamais les valeurs). |
-| `klef rm <name>` | Supprimer une clé. |
+| `klef rm <name>` (alias `remove`) | Supprimer une clé. |
 | `klef edit <name>` | Changer la valeur ou les métadonnées. |
 | `klef rename <old> <new>` | Renommer une clé. |
 | `klef export <name>... [--format shell\|dotenv]` | Émettre des lignes `export`. |
