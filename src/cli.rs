@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use clap_complete::Shell;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -58,6 +59,8 @@ pub enum Command {
         #[arg(last = true)]
         cmd: Vec<String>,
     },
+    /// Generate shell completion script for <shell> on stdout.
+    Completions { shell: Shell },
 }
 
 #[derive(Copy, Clone, Debug, clap::ValueEnum)]

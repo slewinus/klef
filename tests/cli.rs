@@ -165,3 +165,27 @@ fn version_short_flag_prints_crate_version() {
         .success()
         .stdout(predicates::str::contains(env!("CARGO_PKG_VERSION")));
 }
+
+#[test]
+fn completions_zsh_emits_compdef() {
+    use assert_cmd::Command;
+    Command::cargo_bin("klef")
+        .unwrap()
+        .arg("completions")
+        .arg("zsh")
+        .assert()
+        .success()
+        .stdout(predicates::str::starts_with("#compdef klef"));
+}
+
+#[test]
+fn completions_bash_emits_function() {
+    use assert_cmd::Command;
+    Command::cargo_bin("klef")
+        .unwrap()
+        .arg("completions")
+        .arg("bash")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("_klef()"));
+}
