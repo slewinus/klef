@@ -142,3 +142,26 @@ fn rename_moves_key() {
         .failure()
         .code(2);
 }
+
+#[test]
+fn version_flag_prints_crate_version() {
+    use assert_cmd::Command;
+    Command::cargo_bin("klef")
+        .unwrap()
+        .arg("--version")
+        .assert()
+        .success()
+        .stdout(predicates::str::starts_with("klef "))
+        .stdout(predicates::str::contains(env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
+fn version_short_flag_prints_crate_version() {
+    use assert_cmd::Command;
+    Command::cargo_bin("klef")
+        .unwrap()
+        .arg("-V")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(env!("CARGO_PKG_VERSION")));
+}
