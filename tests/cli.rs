@@ -230,3 +230,59 @@ fn edit_with_positional_value_gives_helpful_error() {
         .code(64)
         .stderr(predicates::str::contains("klef edit"));
 }
+
+#[test]
+fn status_text_output_healthy() {
+    let d = TempDir::new().unwrap();
+
+    klef(d.path())
+        .arg("add")
+        .arg("stripe")
+        .write_stdin("v")
+        .assert()
+        .success();
+
+    klef(d.path())
+        .arg("status")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("keys         1"))
+        .stdout(predicates::str::contains("desync       none"));
+}
+
+#[test]
+fn status_json_output() {
+    let d = TempDir::new().unwrap();
+
+    klef(d.path())
+        .arg("status")
+        .arg("--format")
+        .arg("json")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("\"klef_version\":"))
+        .stdout(predicates::str::contains("\"keys\": 0"));
+}
+
+#[test]
+fn status_detects_desync_and_exits_1() {
+    use std::fs;
+    let d = TempDir::new().unwrap();
+    let secrets = d.path().join("secrets.json");
+
+    klef(d.path())
+        .arg("add")
+        .arg("orphan")
+        .write_stdin("v")
+        .assert()
+        .success();
+
+    fs::write(&secrets, "{\"secrets\":{}}").unwrap();
+
+    klef(d.path())
+        .arg("status")
+        .assert()
+        .failure()
+        .code(1)
+        .stdout(predicates::str::contains("orphan(s) in index: orphan"));
+}

@@ -7,3 +7,4 @@ pub mod list;
 pub mod rename;
 pub mod rm;
 pub mod run;
+pub mod status;

@@ -178,6 +178,19 @@ impl Store {
         self.index.save(&data)?;
         Ok(())
     }
+    /// Return key names in index but missing from backend.
+    /// # Errors
+    /// Returns an error if the index fails to load.
+    pub fn orphan_index_entries(&self) -> Result<Vec<String>, KlefError> {
+        let data = self.index.load()?;
+        let mut orphans = Vec::new();
+        for name in data.keys.keys() {
+            if matches!(self.backend.get(name), Err(KlefError::KeyNotFound(_))) {
+                orphans.push(name.clone());
+            }
+        }
+        Ok(orphans)
+    }
 }
 
 /// Generate a default environment variable name from a key name.
@@ -277,5 +290,11 @@ mod tests {
         s.remove("k").unwrap();
         assert!(matches!(s.get_value("k"), Err(KlefError::KeyNotFound(_))));
         assert!(s.list().unwrap().is_empty());
+    }
+    #[test]
+    fn orphan_index_entries_finds_index_only_keys() {
+        let (s, _d) = make_store();
+        s.add("a", "v", None, None, false).unwrap();
+        assert!(s.orphan_index_entries().unwrap().is_empty());
     }
 }

@@ -32,6 +32,7 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
         Command::Export { names, format } => commands::export::run(&store, &names, format),
         Command::Run { env_file, cmd } => commands::run::run(&store, &env_file, &cmd),
         Command::Completions { shell } => commands::completions::run(shell),
+        Command::Status { format } => commands::status::run(&store, format),
     }
 }
 

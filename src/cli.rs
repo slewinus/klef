@@ -61,6 +61,11 @@ pub enum Command {
     },
     /// Generate shell completion script for <shell> on stdout.
     Completions { shell: Shell },
+    /// Print runtime diagnostic state (backend, index, key count, desync).
+    Status {
+        #[arg(long, value_enum, default_value_t = StatusFormat::Text)]
+        format: StatusFormat,
+    },
 }
 
 #[derive(Copy, Clone, Debug, clap::ValueEnum)]
@@ -73,4 +78,10 @@ pub enum ListFormat {
 pub enum ExportFormat {
     Shell,
     Dotenv,
+}
+
+#[derive(Copy, Clone, Debug, clap::ValueEnum)]
+pub enum StatusFormat {
+    Text,
+    Json,
 }
