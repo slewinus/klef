@@ -35,7 +35,9 @@ pub struct IndexFile {
 
 impl IndexFile {
     #[must_use]
-    pub const fn new(path: PathBuf) -> Self {
+    #[allow(clippy::missing_const_for_fn)]
+    // IndexFile is never constructed in const context.
+    pub fn new(path: PathBuf) -> Self {
         Self { path }
     }
 
