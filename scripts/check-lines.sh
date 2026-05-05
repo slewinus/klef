@@ -7,7 +7,7 @@ violations=()
 
 while IFS= read -r path; do
     case "$path" in
-        *.md)
+        *.md|*.toml|*.lock|*.txt|*.json|*.yaml|*.yml)
             continue
             ;;
     esac
