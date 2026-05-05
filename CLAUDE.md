@@ -22,6 +22,13 @@ A local-first CLI vault for API keys, backed by the OS keychain. See [README.md]
 - **Error type is `KlefError`** (`thiserror`-derived enum in `src/error.rs`). Don't introduce `anyhow` or `Box<dyn Error>` in this crate; route everything through `KlefError` so exit codes stay deterministic (see §7 of the design).
 - **Don't reach for a dotenv crate.** The `.env` parser lives in `src/envfile.rs` and is intentionally homegrown — we need exact control over what counts as a `klef:` reference.
 
+## Security boundaries
+
+- **`KLEF_TEST_BACKEND` is debug-only.** The env-var-driven `FileBackend` selection in `lib::backend_from_env` is gated behind `cfg(debug_assertions)`. Release binaries (`cargo install`, `cargo build --release`) ignore the variable completely and always use the keychain. Don't move that gate without thinking — it's the protection against env-var attacks redirecting secret reads/writes to an attacker-controlled file.
+- **Never commit real secrets to test fixtures, snapshots, or example .env files.** Test stdin in `tests/cli.rs` uses obvious dummies (`"sk_live"`, `"v"`, `"sk_test_demo_value"`). Keep it that way. CI logs and snapshot fixtures must be greppable for these patterns to confirm no real secret leaked in.
+- **`get`, `show`, `export`, `run` are exfiltration surfaces by design** — they exist to print or inject secret values. Any change to error/log output in these commands must verify the value isn't accidentally written to stderr, log files, or panic messages.
+- **Don't widen the `KlefError` `Debug` output to include secret values.** The `Debug` impls are auto-derived; if a future variant carries a secret, opt out of the derive for that variant.
+
 ## Tooling
 
 | Hook | When | What |

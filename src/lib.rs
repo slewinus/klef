@@ -7,7 +7,7 @@ pub mod store;
 use cli::{Cli, Command};
 use error::KlefError;
 use std::path::PathBuf;
-use store::{Backend, FileBackend, KeychainBackend, Store};
+use store::{Backend, KeychainBackend, Store};
 
 /// Dispatch the parsed CLI to the appropriate command handler.
 ///
@@ -36,13 +36,29 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
 
 fn build_store() -> Result<Store, KlefError> {
     let index_path = index_path()?;
-    let backend: Box<dyn Backend> = match std::env::var("KLEF_TEST_BACKEND").as_deref() {
-        Ok(spec) if spec.starts_with("file:") => {
-            Box::new(FileBackend::new(PathBuf::from(&spec[5..])))
-        }
-        _ => Box::new(KeychainBackend::new()),
-    };
+    let backend = backend_from_env().unwrap_or_else(|| Box::new(KeychainBackend::new()));
     Ok(Store::new(backend, index_path))
+}
+
+/// Pick a non-default backend from `KLEF_TEST_BACKEND` if and only if this is a
+/// debug build. Release binaries (`cargo install`, `cargo build --release`)
+/// always return `None` so the keychain is the only honored backend — the env
+/// var is simply ignored. This prevents an attacker with environment-variable
+/// control from redirecting reads/writes to a file they own.
+#[cfg(debug_assertions)]
+fn backend_from_env() -> Option<Box<dyn Backend>> {
+    use store::FileBackend;
+    match std::env::var("KLEF_TEST_BACKEND").as_deref() {
+        Ok(spec) if spec.starts_with("file:") => {
+            Some(Box::new(FileBackend::new(PathBuf::from(&spec[5..]))))
+        }
+        _ => None,
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn backend_from_env() -> Option<Box<dyn Backend>> {
+    None
 }
 
 fn index_path() -> Result<PathBuf, KlefError> {
