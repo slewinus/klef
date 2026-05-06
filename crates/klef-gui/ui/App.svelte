@@ -27,14 +27,27 @@
     }
   }
 
-  onMount(async () => {
+  // Refresh the key list. Called once on mount and again every time the
+  // popover regains focus, so that `klef add ...` from a terminal becomes
+  // visible the next time the user opens the popover. We don't watch the
+  // index file because (a) the focus model is more predictable for users
+  // and (b) it avoids spawning a notify thread for a workflow where the
+  // popover is closed most of the time.
+  async function refresh() {
     try {
       keys = await listKeys();
+      loadError = null;
     } catch (e) {
       loadError = String(e);
     } finally {
       loading = false;
     }
+  }
+
+  onMount(() => {
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
   });
 </script>
 
