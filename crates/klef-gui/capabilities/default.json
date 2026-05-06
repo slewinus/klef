@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for klef-gui (S2.2a prototype scope).",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "clipboard-manager:allow-write-text"
+  ]
+}

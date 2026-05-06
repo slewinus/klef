@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/klef-core", "crates/klef-cli"]
+members = ["crates/klef-core", "crates/klef-cli", "crates/klef-gui"]
 resolver = "2"
 
 [workspace.package]
