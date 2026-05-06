@@ -113,6 +113,24 @@ fn edit_key(
         .map_err(|e| e.to_string())
 }
 
+/// Place the window in the top-right corner of the current monitor, with
+/// some breathing room from the screen edges — used as a fallback when the
+/// positioner plugin doesn't yet know the tray geometry. `Position::TopRight`
+/// from the plugin glues the window flush against (0, 0)-from-right which
+/// looks awkward on macOS.
+fn place_top_right_with_margin(window: &tauri::WebviewWindow) {
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        return;
+    };
+    let screen = monitor.size();
+    let win = window.outer_size().unwrap_or_default();
+    let margin_right = 12i32;
+    let margin_top = 32i32; // clear of the macOS menu bar (~24-28px tall)
+    let x = i32::try_from(screen.width.saturating_sub(win.width)).unwrap_or(0) - margin_right;
+    let y = margin_top;
+    let _ = window.set_position(tauri::PhysicalPosition::new(x.max(0), y));
+}
+
 fn toggle_window(app: &tauri::AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -120,16 +138,12 @@ fn toggle_window(app: &tauri::AppHandle) {
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();
     } else {
-        let pos = if TRAY_POS_KNOWN.load(Ordering::Relaxed) {
-            Position::TrayCenter
+        if TRAY_POS_KNOWN.load(Ordering::Relaxed) {
+            let _ = window.move_window(Position::TrayCenter);
         } else {
-            // First activation came from ⌘⇧K, never via the tray click.
-            // The positioner plugin doesn't know the tray geometry yet,
-            // so TrayCenter would panic. Fall back to the top-right of the
-            // screen — visually close to where the menu bar icon sits.
-            Position::TopRight
-        };
-        let _ = window.move_window(pos);
+            // Hotkey-first activation: positioner has no tray geometry yet.
+            place_top_right_with_margin(&window);
+        }
         let _ = window.show();
         let _ = window.set_focus();
         // Notify the frontend that the popover just opened so it can
