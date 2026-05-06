@@ -34,6 +34,13 @@
     plan.items.filter((it) => included[it.env_var]).length,
   );
 
+  // True when every line is already a klef: ref (or empty) — nothing
+  // importable. Common after a re-drop following a previous rewrite.
+  let allInert = $derived(
+    plan.items.length > 0 &&
+      plan.items.every((it) => it.status === "ref" || it.status === "empty"),
+  );
+
   async function submit(e: Event) {
     e.preventDefault();
     if (submitting || toImportCount === 0) return;
@@ -76,6 +83,15 @@
 <form class="modal" onsubmit={submit}>
   <h2>Import .env</h2>
   <small class="src">{plan.source_path}</small>
+
+  {#if allInert}
+    <div class="banner">
+      Every line in this <code>.env</code> is already a <code>klef:</code> ref
+      or empty — nothing to import. If the secret values are gone (you
+      deleted the keys) the original values can't be recovered from this
+      file. Restore them from a backup or recreate manually.
+    </div>
+  {/if}
 
   <label>
     <span>Project tag (auto-suggested from folder)</span>
@@ -174,6 +190,7 @@
   }
   input[type="text"]:focus { border-color: #007aff; box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2); }
   small { color: #98989d; font-size: 10px; }
+  .banner { background: #fff5cc; color: #8a4500; padding: 8px 10px; border-radius: 5px; font-size: 12px; line-height: 1.4; }
   label.checkbox { flex-direction: row; align-items: center; gap: 6px; font-size: 12px; color: inherit; }
   label.checkbox input { width: auto; }
   code { background: #e5e5ea; padding: 0 4px; border-radius: 3px; }
