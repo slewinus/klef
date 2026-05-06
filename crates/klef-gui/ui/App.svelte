@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { copyToClipboard, getKeyValue, listKeys } from "./lib/api";
+  import { filterKeys } from "./lib/filter";
   import type { KeyDto } from "./lib/types";
   import KeyRow from "./lib/KeyRow.svelte";
+  import SearchBar from "./lib/SearchBar.svelte";
   import Toast from "./lib/Toast.svelte";
 
   let keys = $state<KeyDto[]>([]);
@@ -10,6 +12,11 @@
   let loadError = $state<string | null>(null);
   let toast = $state<string | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  let query = $state("");
+  let searchBar: SearchBar | undefined = $state();
+
+  let visibleKeys = $derived(filterKeys(keys, query));
 
   function showToast(msg: string) {
     toast = msg;
@@ -27,6 +34,18 @@
     }
   }
 
+  function handleKeydown(e: KeyboardEvent) {
+    // Esc clears the query (or hides the popover when query is empty —
+    // the OS handles popover dismiss via blur, so we just clear).
+    if (e.key === "Escape") {
+      query = "";
+    }
+    // Enter on a single visible result triggers copy.
+    if (e.key === "Enter" && visibleKeys.length === 1) {
+      handleCopy(visibleKeys[0]);
+    }
+  }
+
   onMount(async () => {
     try {
       keys = await listKeys();
@@ -35,10 +54,18 @@
     } finally {
       loading = false;
     }
+    // Auto-focus the search bar so the user can type immediately on popover
+    // open. Tiny delay so the input element exists.
+    setTimeout(() => searchBar?.focus(), 0);
   });
 </script>
 
-<header>klef</header>
+<svelte:window onkeydown={handleKeydown} />
+
+<header>
+  <div class="title">klef</div>
+  <SearchBar bind:this={searchBar} bind:value={query} />
+</header>
 
 <main>
   {#if loading}
@@ -49,8 +76,12 @@
     <div class="empty">
       No keys yet. Add some with the CLI: <code>klef add &lt;name&gt;</code>
     </div>
+  {:else if visibleKeys.length === 0}
+    <div class="empty">
+      No keys match <strong>“{query}”</strong>
+    </div>
   {:else}
-    {#each keys as key (key.name)}
+    {#each visibleKeys as key (key.name)}
       <KeyRow {key} onCopy={handleCopy} />
     {/each}
   {/if}
@@ -60,10 +91,16 @@
 
 <style>
   header {
-    padding: 12px 16px;
+    padding: 10px 12px 8px;
     background: #fff;
     border-bottom: 1px solid #d2d2d7;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .title {
     font-weight: 600;
+    font-size: 13px;
   }
   main {
     padding: 8px;
@@ -83,6 +120,9 @@
     padding: 1px 4px;
     border-radius: 3px;
   }
+  strong {
+    color: #1d1d1f;
+  }
   @media (prefers-color-scheme: dark) {
     header {
       background: #2c2c2e;
@@ -90,6 +130,9 @@
     }
     code {
       background: #3a3a3c;
+    }
+    strong {
+      color: #f5f5f7;
     }
   }
 </style>
