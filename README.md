@@ -129,7 +129,7 @@ klef completions fish > ~/.config/fish/completions/klef.fish
 
 # Build / test
 cargo build
-cargo test --all-features      # 76 tests : unit + E2E
+cargo test --all-features      # 86 tests : unit + E2E
 cargo run -- --help
 ```
 
@@ -144,9 +144,9 @@ Les hooks git (`fmt`, `clippy`, `tests`, line-cap < 300 lignes/fichier) sont ver
 
 ## Statut
 
-✅ **v0.1 MVP** taggé (mai 2026) — la base : 10 commandes, Keychain backend, killer feature `klef run`.
+✅ **v0.2.0** taggé (2026-05-06) — distribution prête : 13 commandes, binaires pré-compilés pour macOS (Intel + Apple Silicon) + Linux (x86_64 + ARM), formule Homebrew, complétion zsh dynamique des noms de clés.
 
-🚧 **v0.2 en cours** sur `main` (untagged) — ajouts depuis v0.1 :
+Highlights ajoutés depuis v0.1 :
 - `klef import .env` pour onboarder un projet existant en une commande
 - `klef status` pour le diagnostic
 - `klef set-note` raccourci
@@ -154,12 +154,11 @@ Les hooks git (`fmt`, `clippy`, `tests`, line-cap < 300 lignes/fichier) sont ver
 - `--value-from-file` pour les secrets multi-lignes (PEM, certs, JSON)
 - Hints actionnables quand le Keychain n'est pas disponible (Linux + macOS)
 - Alias `klef remove` pour `klef rm`
-
-Reste avant de tagger v0.2.0 : Homebrew formula ([#10](https://github.com/slewinus/klef/issues/10)), binaires pré-compilés ([#11](https://github.com/slewinus/klef/issues/11)), `klef discover` ([#21](https://github.com/slewinus/klef/issues/21)).
+- Complétion zsh dynamique : `klef show str<Tab>` → `stripe`
 
 - **Plateformes supportées** : macOS (Keychain natif) + Linux desktop (Secret Service via gnome-keyring / KWallet).
 - **Hors-scope v0.2** : Linux headless / WSL sans desktop, Windows, synchro multi-machines, GUI.
-- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones).
+- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones). v0.3+ trackée sous le [headless umbrella #26](https://github.com/slewinus/klef/issues/26), backend chiffré [#12](https://github.com/slewinus/klef/issues/12), MCP server [#24](https://github.com/slewinus/klef/issues/24), GUI [#18](https://github.com/slewinus/klef/issues/18).
 
 ## Licence
 
