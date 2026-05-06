@@ -52,7 +52,7 @@ pub fn build_store_from_config(config: Option<&dto::BackendConfig>) -> Result<St
     let meta: Box<dyn MetaStore>;
 
     match config {
-        Some(dto::BackendConfig::AgeFile { path, .. }) => {
+        Some(dto::BackendConfig::AgeFile { path }) => {
             // Both backend and meta share the same Arc<AgeBackendInner>, so the
             // passphrase is cached across both trait calls and only one vault
             // file is ever read/written. The global index file is never touched.

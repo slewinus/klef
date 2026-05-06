@@ -68,15 +68,23 @@ impl From<(String, usize)> for TagSummaryDto {
 /// `Keychain` is the production default on macOS and Linux desktop sessions.
 /// `AgeFile` covers headless / CI / Docker environments and the
 /// "encrypted-file" backend opt-in.
+///
+/// **Field naming**: this enum (and all DTOs in this module) serializes with
+/// `snake_case` to match the rest of klef's on-disk schema (`KeyMeta`,
+/// `Bundle`). JS consumers via Tauri can read `cfg.kind` / `cfg.path`
+/// directly with no translation cost.
+///
+/// **No backup recipients here**: `klef backup --recipient <key>` is a
+/// per-operation argument, not a property of the persisted backend. The GUI
+/// will track recipients separately (`BackupConfig` DTO) when it implements
+/// the backup UI in a later sprint, or it'll just be a per-operation flag
+/// passed at the moment of `Bundle` creation. Either way, not a property of
+/// `BackendConfig`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BackendConfig {
     Keychain,
-    AgeFile {
-        path: PathBuf,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        recipients: Vec<String>,
-    },
+    AgeFile { path: PathBuf },
 }
 
 impl BackendConfig {
@@ -87,7 +95,7 @@ impl BackendConfig {
     pub fn to_spec(&self) -> Option<String> {
         match self {
             Self::Keychain => None,
-            Self::AgeFile { path, .. } => Some(format!("age:{}", path.display())),
+            Self::AgeFile { path } => Some(format!("age:{}", path.display())),
         }
     }
 
@@ -105,7 +113,6 @@ impl BackendConfig {
             }
             return Ok(Self::AgeFile {
                 path: PathBuf::from(path),
-                recipients: Vec::new(),
             });
         }
         if spec.starts_with("file:") {
@@ -185,7 +192,6 @@ mod tests {
     fn backend_config_age_file_round_trips_through_spec() {
         let cfg = BackendConfig::AgeFile {
             path: PathBuf::from("/tmp/x.age"),
-            recipients: vec![],
         };
         let spec = cfg.to_spec().unwrap();
         assert_eq!(spec, "age:/tmp/x.age");
@@ -197,7 +203,6 @@ mod tests {
     fn backend_config_round_trips_through_json() {
         let cfg = BackendConfig::AgeFile {
             path: PathBuf::from("/tmp/x.age"),
-            recipients: vec!["age1abc".to_string(), "age1xyz".to_string()],
         };
         let json = serde_json::to_string(&cfg).unwrap();
         let back: BackendConfig = serde_json::from_str(&json).unwrap();
