@@ -8,4 +8,6 @@ export interface KeyDto {
   note?: string;
   added_at: string;
   updated_at: string;
+  /** RFC3339 timestamp; absent if the key has never been accessed via the GUI. */
+  last_used_at?: string;
 }

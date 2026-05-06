@@ -62,6 +62,11 @@ jobs:
           npm ci
           npm run build
 
+      - name: Test klef-gui frontend (macos)
+        if: runner.os == 'macOS'
+        working-directory: crates/klef-gui
+        run: npm test
+
       # klef-gui is macOS-only by design (Tauri menu bar app). Skip it on
       # Linux jobs rather than installing the heavy webkit2gtk deps for a
       # crate that won't ship on this platform.

@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { copyWithAutoClear } from "./clipboard";
+import { autoClearMs, loadSettings } from "./settings";
 import type { KeyDto } from "./types";
 
 // Thin wrappers over Tauri commands. Keep these typed so the Svelte
@@ -13,6 +14,60 @@ export function getKeyValue(name: string): Promise<string> {
   return invoke<string>("get_key_value", { name });
 }
 
+export interface AddKeyInput {
+  name: string;
+  value: string;
+  envVar?: string;
+  note?: string;
+  tags: string[];
+}
+
+export function addKey(input: AddKeyInput): Promise<void> {
+  // Tauri serializes camelCase JS keys to snake_case Rust args
+  // automatically when the Rust function uses snake_case parameter names.
+  return invoke<void>("add_key", {
+    name: input.name,
+    value: input.value,
+    envVar: input.envVar ?? null,
+    note: input.note ?? null,
+    tags: input.tags,
+  });
+}
+
+export function deleteKey(name: string): Promise<void> {
+  return invoke<void>("delete_key", { name });
+}
+
+/**
+ * Record that the user just accessed (copied) this key. Errors are
+ * intentionally non-fatal at the call site — the user already has the
+ * value, so a metadata write failure should not surface as a copy error.
+ */
+export function recordAccess(name: string): Promise<void> {
+  return invoke<void>("record_access", { name });
+}
+
+export interface EditKeyInput {
+  name: string;
+  /** undefined = preserve the existing secret value. */
+  value?: string;
+  envVar?: string;
+  note?: string;
+  tags: string[];
+}
+
+export function editKey(input: EditKeyInput): Promise<void> {
+  return invoke<void>("edit_key", {
+    name: input.name,
+    value: input.value ?? null,
+    envVar: input.envVar ?? null,
+    note: input.note ?? null,
+    tags: input.tags,
+  });
+}
+
+// Copies the value AND schedules an auto-clear based on user settings.
+// `null` timeout disables the auto-clear (when the user sets duration to 0).
 export function copyToClipboard(value: string): Promise<void> {
-  return writeText(value);
+  return copyWithAutoClear(value, autoClearMs(loadSettings()));
 }

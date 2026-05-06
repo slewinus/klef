@@ -30,6 +30,12 @@ pub struct KeyDto {
     pub added_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "time::serde::rfc3339::option"
+    )]
+    pub last_used_at: Option<OffsetDateTime>,
 }
 
 impl From<(String, KeyMeta)> for KeyDto {
@@ -41,6 +47,7 @@ impl From<(String, KeyMeta)> for KeyDto {
             note: meta.note,
             added_at: meta.added_at,
             updated_at: meta.updated_at,
+            last_used_at: meta.last_used_at,
         }
     }
 }
@@ -138,6 +145,7 @@ mod tests {
             tags: vec!["billing".to_string(), "prod".to_string()],
             added_at: datetime!(2026-05-05 19:57:00 UTC),
             updated_at: datetime!(2026-05-06 08:30:00 UTC),
+            last_used_at: None,
         }
     }
 
@@ -169,10 +177,12 @@ mod tests {
             note: None,
             added_at: datetime!(2026-05-05 0:00 UTC),
             updated_at: datetime!(2026-05-05 0:00 UTC),
+            last_used_at: None,
         };
         let json = serde_json::to_string(&dto).unwrap();
         assert!(!json.contains("tags"));
         assert!(!json.contains("note"));
+        assert!(!json.contains("last_used_at"));
     }
 
     #[test]
