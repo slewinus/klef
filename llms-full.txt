@@ -152,8 +152,6 @@ Les hooks git (`fmt`, `clippy`, `tests`, line-cap < 300 lignes/fichier) sont ver
 
 ## Documentation
 
-- **Design spec** (10 décisions tranchées + architecture) : [docs/design/2026-05-05-mvp-design.md](./docs/design/2026-05-05-mvp-design.md)
-- **Plan d'implémentation** (17 tasks, TDD) : [docs/plans/2026-05-05-mvp-implementation.md](./docs/plans/2026-05-05-mvp-implementation.md)
 - **Quickstart** : [examples/quickstart/](./examples/quickstart/) — `.env` + script consommateur, smoke test bout-en-bout.
 - **Changelog** : [CHANGELOG.md](./CHANGELOG.md)
 

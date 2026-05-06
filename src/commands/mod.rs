@@ -1,5 +1,6 @@
 pub mod add;
 pub mod completions;
+pub mod discover;
 pub mod edit;
 pub mod export;
 pub mod get;

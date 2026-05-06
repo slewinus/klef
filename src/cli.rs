@@ -95,10 +95,37 @@ pub enum Command {
         #[arg(long)]
         yes: bool,
     },
+    /// Walk the filesystem and bulk-import secrets from every .env file found.
+    Discover {
+        /// Root directory for the scan. Defaults to the current directory.
+        #[arg(long, value_name = "PATH")]
+        root: Option<PathBuf>,
+        /// Max directory depth from root.
+        #[arg(long, default_value_t = 4)]
+        depth: usize,
+        /// Filename patterns to consider. Repeatable. Defaults to common .env variants.
+        #[arg(long, value_name = "PATTERN")]
+        include: Vec<String>,
+        /// Print the plan, don't write anything.
+        #[arg(long)]
+        dry_run: bool,
+        /// Skip the interactive confirmation.
+        #[arg(long)]
+        yes: bool,
+        /// Conflict resolution when the same env-var name appears in multiple files.
+        #[arg(long, value_enum, default_value_t = ConflictMode::FirstFound)]
+        on_conflict: ConflictMode,
+    },
     /// Internal: print one stored key name per line. Used by shell completion scripts.
     /// Hidden from --help.
     #[command(name = "_names", hide = true)]
     Names,
+}
+
+#[derive(Copy, Clone, Debug, clap::ValueEnum)]
+pub enum ConflictMode {
+    FirstFound,
+    LastFound,
 }
 
 #[derive(Copy, Clone, Debug, clap::ValueEnum)]
