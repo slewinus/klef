@@ -13,10 +13,11 @@ pub fn run(store: &Store, format: StatusFormat) -> Result<(), KlefError> {
     let orphans = store.orphan_index_entries()?;
     let healthy = orphans.is_empty();
     let index_path = store_index_path();
+    let backend = store.backend_description();
 
     match format {
-        StatusFormat::Text => print_text(entries.len(), &orphans, &index_path),
-        StatusFormat::Json => print_json(entries.len(), &orphans, &index_path)?,
+        StatusFormat::Text => print_text(entries.len(), &orphans, &index_path, &backend),
+        StatusFormat::Json => print_json(entries.len(), &orphans, &index_path, &backend)?,
     }
 
     if !healthy {
@@ -34,17 +35,9 @@ fn store_index_path() -> String {
     })
 }
 
-const fn backend_name() -> &'static str {
-    if cfg!(debug_assertions) {
-        "KeychainBackend (or FileBackend if KLEF_TEST_BACKEND=file:...)"
-    } else {
-        "KeychainBackend"
-    }
-}
-
-fn print_text(key_count: usize, orphans: &[String], index_path: &str) {
+fn print_text(key_count: usize, orphans: &[String], index_path: &str, backend: &str) {
     println!("klef         {KLEF_VERSION}");
-    println!("backend      {}", backend_name());
+    println!("backend      {backend}");
     println!("index        {index_path}");
     println!("keys         {key_count} in index");
     if orphans.is_empty() {
@@ -58,10 +51,15 @@ fn print_text(key_count: usize, orphans: &[String], index_path: &str) {
     }
 }
 
-fn print_json(key_count: usize, orphans: &[String], index_path: &str) -> Result<(), KlefError> {
+fn print_json(
+    key_count: usize,
+    orphans: &[String],
+    index_path: &str,
+    backend: &str,
+) -> Result<(), KlefError> {
     let body = serde_json::json!({
         "klef_version": KLEF_VERSION,
-        "backend": backend_name(),
+        "backend": backend,
         "index_path": index_path,
         "keys": key_count,
         "desync": orphans,

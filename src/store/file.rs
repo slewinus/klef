@@ -54,6 +54,10 @@ impl FileBackend {
 }
 
 impl Backend for FileBackend {
+    fn describe(&self) -> String {
+        format!("file:{}", self.path.display())
+    }
+
     fn get(&self, name: &str) -> Result<String, KlefError> {
         let _g = self.lock.lock().unwrap();
         let data = self.load()?;

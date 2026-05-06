@@ -18,6 +18,12 @@ impl Store {
         Self { backend, meta }
     }
 
+    /// Human-readable backend identifier for diagnostics (e.g. `status`).
+    #[must_use]
+    pub fn backend_description(&self) -> String {
+        self.backend.describe()
+    }
+
     /// Add or update a secret by name, optionally with env-var, note, and tags metadata.
     /// # Errors
     /// Returns `InvalidKeyName`, `KeyAlreadyExists`, or a backend/index error.
