@@ -4,7 +4,7 @@
 
 use klef_core::{KeyDto, build_store};
 use tauri::{
-    Manager as _, WindowEvent,
+    Emitter as _, Manager as _, WindowEvent,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use tauri_plugin_positioner::{Position, WindowExt as _};
@@ -26,16 +26,74 @@ fn list_keys(state: tauri::State<'_, AppState>) -> Result<Vec<KeyDto>, String> {
     Ok(entries.into_iter().map(KeyDto::from).collect())
 }
 
-// `get_key_value` is the only command that returns a secret to the webview.
-// Plaintext is necessary for clipboard copy (Tauri's clipboard plugin runs
-// JS-side, not Rust-side). Mitigations:
-//   - The CSP forbids exfiltration via connect-src (only Tauri IPC + 'self').
-//   - The Svelte `App.svelte` does not retain the value beyond the copy call.
-//   - The capability list explicitly grants only clipboard-manager:write-text.
+// `get_key_value` returns secret plaintext to the webview because the
+// clipboard plugin runs JS-side, not Rust-side. Surface and mitigations:
+//   - The webview also has `clipboard-manager:read-text` (granted in
+//     capabilities/default.json) for the auto-clear verification — it
+//     reads back the clipboard before clearing so we don't wipe content
+//     the user copied from elsewhere within the timeout window.
+//   - The CSP `connect-src` is restricted to Tauri IPC and 'self', so
+//     the secret cannot be exfiltrated to a remote host.
+//   - The Svelte side does not retain the secret beyond the copy call;
+//     the auto-clear timer keeps a copy of the last-written string only
+//     to compare it back, then drops it.
+//   - `edit_key` deliberately re-reads the value from the backend when
+//     the user edits metadata only, so a metadata-only update never
+//     surfaces the plaintext to JS in the first place.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 fn get_key_value(name: String, state: tauri::State<'_, AppState>) -> Result<String, String> {
     state.store.get_value(&name).map_err(|e| e.to_string())
+}
+
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+fn add_key(
+    name: String,
+    value: String,
+    env_var: Option<String>,
+    note: Option<String>,
+    tags: Vec<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    // `force = false`: this command is for "Add", not "Update". The GUI
+    // surfaces a separate Edit form (S4.2) that calls add with force=true.
+    // env_var: None lets Store::add derive the default (`UPPERCASE_API_KEY`)
+    // exactly like the CLI does.
+    state
+        .store
+        .add(&name, &value, env_var, note, tags, false)
+        .map_err(|e| e.to_string())
+}
+
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+fn delete_key(name: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.store.remove(&name).map_err(|e| e.to_string())
+}
+
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+fn edit_key(
+    name: String,
+    value: Option<String>,
+    env_var: Option<String>,
+    note: Option<String>,
+    tags: Vec<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    // value=None means "keep the current value" — preserves the secret
+    // when the user only edits metadata (the common case). We re-read it
+    // from the backend rather than asking the webview to round-trip the
+    // plaintext, so a metadata-only edit never exposes the value to JS.
+    let value_to_use = match value {
+        Some(v) => v,
+        None => state.store.get_value(&name).map_err(|e| e.to_string())?,
+    };
+    state
+        .store
+        .add(&name, &value_to_use, env_var, note, tags, true)
+        .map_err(|e| e.to_string())
 }
 
 fn toggle_window(app: &tauri::AppHandle) {
@@ -48,6 +106,11 @@ fn toggle_window(app: &tauri::AppHandle) {
         let _ = window.move_window(Position::TrayCenter);
         let _ = window.show();
         let _ = window.set_focus();
+        // Notify the frontend that the popover just opened so it can
+        // refresh data and refocus the search bar. The DOM `focus` event
+        // isn't reliable on Tauri's webview when toggling visibility — the
+        // OS-level show/hide doesn't always propagate as a JS focus event.
+        let _ = window.emit("popover-shown", ());
     }
 }
 
@@ -55,6 +118,25 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_positioner::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    use tauri_plugin_global_shortcut::ShortcutState;
+                    // Fire on key release so we don't double-fire on the
+                    // user holding ⌘⇧K. macOS sends repeat events for held
+                    // keys; release-only filters those out.
+                    if event.state == ShortcutState::Released
+                        && shortcut.matches(
+                            tauri_plugin_global_shortcut::Modifiers::SUPER
+                                | tauri_plugin_global_shortcut::Modifiers::SHIFT,
+                            tauri_plugin_global_shortcut::Code::KeyK,
+                        )
+                    {
+                        toggle_window(app);
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             eprintln!("klef-gui: setup start");
 
@@ -96,11 +178,34 @@ fn main() {
                 .build(app)?;
             eprintln!("klef-gui: tray ready");
 
+            // Register the global hotkey ⌘⇧K. The handler is wired in the
+            // plugin builder above; here we just declare what to listen for.
+            // Using `Modifiers::SUPER` for Cmd to keep the same code path on
+            // Linux/Windows when we eventually port (`SUPER` is Cmd on macOS,
+            // Win/Meta elsewhere).
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt as _, Modifiers};
+                let shortcut = tauri_plugin_global_shortcut::Shortcut::new(
+                    Some(Modifiers::SUPER | Modifiers::SHIFT),
+                    Code::KeyK,
+                );
+                // Don't fail the whole app if another process already owns
+                // ⌘⇧K (e.g. another launcher utility). The tray icon click
+                // still works as a fallback. A future Settings UI (S7) will
+                // let users pick a different chord.
+                match app.global_shortcut().register(shortcut) {
+                    Ok(()) => eprintln!("klef-gui: ⌘⇧K registered"),
+                    Err(e) => eprintln!(
+                        "klef-gui: failed to register ⌘⇧K ({e}); tray icon click still works"
+                    ),
+                }
+            }
+
             // Hide the Dock icon AFTER the tray is up, so we never end up in
             // a state where the app is dock-less with no menu bar entry.
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            eprintln!("klef-gui: setup done — click the tray icon to open");
+            eprintln!("klef-gui: setup done — click the tray icon or ⌘⇧K");
 
             Ok(())
         })
@@ -112,7 +217,13 @@ fn main() {
                 let _ = window.hide();
             }
         })
-        .invoke_handler(tauri::generate_handler![list_keys, get_key_value])
+        .invoke_handler(tauri::generate_handler![
+            list_keys,
+            get_key_value,
+            add_key,
+            delete_key,
+            edit_key
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
