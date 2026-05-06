@@ -126,6 +126,24 @@ pub enum Command {
         #[arg(long)]
         skip_defaults: bool,
     },
+    /// Encrypted backup of the entire vault (values + metadata) to a single .age file.
+    Backup {
+        /// Output path. Convention: `.age` extension.
+        output: PathBuf,
+        /// Recipient public key for asymmetric encryption (e.g. age1...). Repeatable.
+        /// If absent, the backup is encrypted with a passphrase prompted on stdin.
+        #[arg(long, value_name = "KEY")]
+        recipient: Vec<String>,
+    },
+    /// Restore the vault from a klef backup file.
+    Restore {
+        /// Input path.
+        input: PathBuf,
+        /// Overwrite existing keys instead of failing on conflict.
+        /// WARNING: pre-existing values are NOT backed up automatically.
+        #[arg(long)]
+        force: bool,
+    },
     /// Internal: print one stored key name per line. Used by shell completion scripts.
     /// Hidden from --help.
     #[command(name = "_names", hide = true)]

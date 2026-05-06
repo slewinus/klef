@@ -8,6 +8,8 @@ use time::OffsetDateTime;
 pub struct KeyMeta {
     pub env_var: String,
     pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub added_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -90,6 +92,7 @@ mod tests {
         KeyMeta {
             env_var: "STRIPE_API_KEY".into(),
             note: Some("prod".into()),
+            tags: vec![],
             added_at: datetime!(2026-05-05 19:57:00 UTC),
             updated_at: datetime!(2026-05-05 19:57:00 UTC),
         }

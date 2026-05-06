@@ -21,8 +21,12 @@ time = { version = "0.3", features = ["serde", "formatting", "macros", "parsing"
 dirs = "5"
 walkdir = "2"
 regex = "1"
+age = { version = "0.11", features = ["armor"] }
+zeroize = "1"
+gethostname = "1"
 
 [dev-dependencies]
+age = { version = "0.11", features = ["armor"] }
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"

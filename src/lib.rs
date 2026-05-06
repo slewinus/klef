@@ -79,6 +79,8 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
             &skip_pattern,
             skip_defaults,
         ),
+        Command::Backup { output, recipient } => commands::backup::run(&store, &output, &recipient),
+        Command::Restore { input, force } => commands::restore::run(&store, &input, force),
         Command::Names => commands::names::run(&store),
     }
 }

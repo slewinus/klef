@@ -1,4 +1,5 @@
 pub mod add;
+pub mod backup;
 pub mod completions;
 pub mod discover;
 pub mod edit;
@@ -8,6 +9,7 @@ pub mod import;
 pub mod list;
 pub mod names;
 pub mod rename;
+pub mod restore;
 pub mod rm;
 pub mod run;
 pub mod set_note;
