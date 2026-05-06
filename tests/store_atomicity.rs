@@ -6,17 +6,22 @@
 
 use klef::error::KlefError;
 use klef::store::{Backend, IndexData, MemoryBackend, MetaStore, Store};
+use std::path::PathBuf;
 use std::sync::Mutex;
 
-#[derive(Default)]
 struct FailingMetaStore {
     data: Mutex<IndexData>,
     fail_next_save: Mutex<bool>,
+    lock_dir: tempfile::TempDir,
 }
 
 impl FailingMetaStore {
     fn new() -> Self {
-        Self::default()
+        Self {
+            data: Mutex::new(IndexData::default()),
+            fail_next_save: Mutex::new(false),
+            lock_dir: tempfile::tempdir().unwrap(),
+        }
     }
     fn fail_next(&self) {
         *self.fail_next_save.lock().unwrap() = true;
@@ -35,6 +40,9 @@ impl MetaStore for FailingMetaStore {
         }
         *self.data.lock().unwrap() = data.clone();
         Ok(())
+    }
+    fn lock_path(&self) -> PathBuf {
+        self.lock_dir.path().join("test-resource")
     }
 }
 

@@ -24,6 +24,7 @@ regex = "1"
 age = { version = "0.11", features = ["armor"] }
 zeroize = "1"
 gethostname = "1"
+fs4 = "0.13"
 
 [dev-dependencies]
 age = { version = "0.11", features = ["armor"] }

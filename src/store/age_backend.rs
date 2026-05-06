@@ -261,6 +261,10 @@ impl MetaStore for AgeBackend {
         vault.index = data.clone();
         self.save_vault(&vault)
     }
+
+    fn lock_path(&self) -> PathBuf {
+        self.inner.path.clone()
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 use crate::commands::backup::BundleEntry;
 use crate::error::KlefError;
+use crate::store::lock::FileLock;
 use crate::store::{Backend, KeyMeta, MetaStore};
 use time::OffsetDateTime;
 
@@ -24,6 +25,15 @@ impl Store {
         self.backend.describe()
     }
 
+    /// Acquire the inter-process lock that protects the meta store.
+    ///
+    /// All mutating ops hold this for the duration of their load → mutate
+    /// → save sequence so two concurrent klef processes can't lose each
+    /// other's writes (closes #61).
+    fn lock(&self) -> Result<FileLock, KlefError> {
+        FileLock::acquire(&self.meta.lock_path())
+    }
+
     /// Add or update a secret by name, optionally with env-var, note, and tags metadata.
     /// # Errors
     /// Returns `InvalidKeyName`, `KeyAlreadyExists`, or a backend/index error.
@@ -37,6 +47,7 @@ impl Store {
         force: bool,
     ) -> Result<(), KlefError> {
         super::validate_name(name)?;
+        let _lock = self.lock()?;
         let mut data = self.meta.load_index()?;
         if data.keys.contains_key(name) && !force {
             return Err(KlefError::KeyAlreadyExists(name.to_string()));
@@ -52,25 +63,9 @@ impl Store {
             added_at: data.keys.get(name).map_or(now, |k| k.added_at),
             updated_at: now,
         };
-        // Atomicity (closes #48):
-        //
-        // Naive order — backend.set then meta.save_index — silently loses
-        // data on index save failure: the secret is in the keychain but
-        // klef list can't see it, and the next `add` of the same name
-        // overwrites the orphan.
-        //
-        // We do:
-        //   1) snapshot the prior backend value (so we can restore it on
-        //      failure during a force-overwrite),
-        //   2) write the new value,
-        //   3) write the index — if THIS fails, compensate: restore the
-        //      prior value (or remove the new one if there was none),
-        //      so the user sees a clean error rather than silent corruption.
-        //
-        // Compensation is best-effort. If it also fails we still leak an
-        // orphan, but `status` reports it for enumerable backends (age,
-        // file). On keychain, double-failure (disk + keychain) is rare and
-        // surfaces two error lines to the user.
+        // Atomicity (#48): snapshot prior value, write new, save index;
+        // on index-save failure restore prior (or remove new) so we never
+        // leak a phantom secret. Best-effort — see tests/store_atomicity.rs.
         let prior = self.backend.get(name).ok();
         self.backend.set(name, value)?;
         data.keys.insert(name.to_string(), meta);
@@ -90,6 +85,7 @@ impl Store {
     /// # Errors
     /// `KeyNotFound` if name doesn't exist; index errors propagated.
     pub fn set_tags(&self, name: &str, tags: Vec<String>) -> Result<(), KlefError> {
+        let _lock = self.lock()?;
         let mut data = self.meta.load_index()?;
         let meta = data
             .keys
@@ -142,6 +138,7 @@ impl Store {
     /// # Errors
     /// Returns `KeyNotFound` if the key does not exist, or an index error.
     pub fn remove(&self, name: &str) -> Result<(), KlefError> {
+        let _lock = self.lock()?;
         let mut data = self.meta.load_index()?;
         if !data.keys.contains_key(name) {
             return Err(KlefError::KeyNotFound(name.to_string()));
@@ -179,6 +176,7 @@ impl Store {
         env_var: Option<String>,
         note: Option<Option<String>>,
     ) -> Result<(), KlefError> {
+        let _lock = self.lock()?;
         let mut data = self.meta.load_index()?;
         let meta = data
             .keys
@@ -202,6 +200,7 @@ impl Store {
     /// Panics on internal inconsistency (old key in index but not removable).
     pub fn rename(&self, old: &str, new: &str) -> Result<(), KlefError> {
         super::validate_name(new)?;
+        let _lock = self.lock()?;
         let mut data = self.meta.load_index()?;
         if !data.keys.contains_key(old) {
             return Err(KlefError::KeyNotFound(old.to_string()));
@@ -209,18 +208,9 @@ impl Store {
         if data.keys.contains_key(new) {
             return Err(KlefError::KeyAlreadyExists(new.to_string()));
         }
-        // Atomicity (closes #48):
-        //
-        // Sequence:
-        //   1) read old value,
-        //   2) write the new key in the backend (now backend has both),
-        //   3) write the index — if it fails, undo the new key,
-        //   4) remove the old key from the backend (best-effort).
-        //
-        // Step 4 may fail (keychain hiccup, etc.). That leaves `old` in the
-        // backend without an index entry — a reverse orphan, detectable via
-        // `status` for enumerable backends. We accept it instead of failing
-        // the whole rename, since the index already reflects the new state.
+        // Atomicity (#48): read old → set new → save index → remove old.
+        // If save fails we undo the new key. Old-key removal is best-effort
+        // (a leaked old key shows up as a reverse orphan in status).
         let value = self.backend.get(old)?;
         self.backend.set(new, &value)?;
         let mut meta = data.keys.remove(old).expect("checked above");
@@ -238,6 +228,7 @@ impl Store {
     /// # Errors
     /// Returns an error if the backend write fails.
     pub fn restore_phase_1(&self, entry: &BundleEntry) -> Result<(), KlefError> {
+        let _lock = self.lock()?;
         self.backend.set(&entry.name, &entry.value)
     }
 
@@ -245,6 +236,7 @@ impl Store {
     /// # Errors
     /// Returns an error if the index save fails.
     pub fn restore_phase_2(&self, entries: &[BundleEntry]) -> Result<(), KlefError> {
+        let _lock = self.lock()?;
         let mut data = self.meta.load_index()?;
         for entry in entries {
             data.keys.insert(
