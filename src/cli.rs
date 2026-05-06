@@ -5,6 +5,12 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(name = "klef", version, about = "Local-first vault for API keys.")]
 pub struct Cli {
+    /// Backend selection. Default: OS keychain.
+    /// Format: `age:/path/to/file.age` for an age-encrypted file backend
+    /// (Linux headless, CI, Docker). Passphrase from `KLEF_PASSPHRASE` env var or TTY.
+    #[arg(long, global = true, value_name = "SPEC")]
+    pub backend: Option<String>,
+
     #[command(subcommand)]
     pub command: Command,
 }

@@ -82,3 +82,31 @@ After step 1-2 are done once, releases just need:
 4. Commit and push the bumped formula.
 
 A future enhancement (out of scope for v0.2) automates the formula bump via a workflow step that opens a PR on the tap repo on every release. See [#10](https://github.com/slewinus/klef/issues/10) for the tracking discussion.
+
+## Headless / CI / Docker — age backend
+
+When the OS keychain isn't available (Linux servers without gnome-keyring,
+CI runners, Docker containers), use the age-encrypted file backend:
+
+```bash
+# Interactive use — prompts for passphrase on first call (twice for confirmation)
+klef --backend age:/path/to/secrets.age add stripe
+
+# CI use — passphrase via env var (set by the CI secret manager)
+KLEF_PASSPHRASE=$RUNNER_SECRET klef --backend age:./secrets.age get stripe
+```
+
+The vault is a single age-encrypted file. Every `get`/`set`/`remove`
+decrypts → mutates → re-encrypts atomically (tmp + rename).
+
+**Setup** in a fresh CI:
+1. Create the vault locally (interactive): `klef --backend age:./secrets.age add my-secret`
+2. Store `./secrets.age` in a separate private repo or CI secret manager
+3. In CI, fetch the file + the passphrase, then:
+   `KLEF_PASSPHRASE=$P klef --backend age:./secrets.age run -- ./script.sh`
+
+**Passphrase loss = unrecoverable**. age has no backdoor. Document your passphrase policy.
+
+**Asymmetric mode** (`--recipient age1...`) is not yet supported on the read side
+in v0.4 — passphrase only. File a follow-up if you need YubiKey-resident keys
+for a CI scenario.

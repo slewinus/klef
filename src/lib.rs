@@ -7,7 +7,7 @@ pub mod store;
 use cli::{Cli, Command};
 use error::KlefError;
 use std::path::PathBuf;
-use store::{Backend, KeychainBackend, Store};
+use store::{AgeBackend, Backend, KeychainBackend, Store};
 
 /// Dispatch the parsed CLI to the appropriate command handler.
 ///
@@ -15,7 +15,7 @@ use store::{Backend, KeychainBackend, Store};
 ///
 /// Returns an error if the backend or command dispatch fails.
 pub fn run(cli: Cli) -> Result<(), KlefError> {
-    let store = build_store()?;
+    let store = build_store(cli.backend.as_deref())?;
     match cli.command {
         Command::Add {
             name,
@@ -100,10 +100,35 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
     }
 }
 
-fn build_store() -> Result<Store, KlefError> {
+fn build_store(backend_spec: Option<&str>) -> Result<Store, KlefError> {
     let index_path = index_path()?;
-    let backend = backend_from_env().unwrap_or_else(|| Box::new(KeychainBackend::new()));
+    let backend = if let Some(spec) = backend_spec {
+        backend_from_spec(spec)?
+    } else if let Some(b) = backend_from_env() {
+        b
+    } else {
+        Box::new(KeychainBackend::new())
+    };
     Ok(Store::new(backend, index_path))
+}
+
+fn backend_from_spec(spec: &str) -> Result<Box<dyn Backend>, KlefError> {
+    if let Some(path) = spec.strip_prefix("age:") {
+        if path.is_empty() {
+            return Err(KlefError::BackendUnavailable(
+                "--backend age: requires a path (e.g. age:/path/to/secrets.age)".to_string(),
+            ));
+        }
+        Ok(Box::new(AgeBackend::new(PathBuf::from(path))))
+    } else if spec.starts_with("file:") {
+        Err(KlefError::BackendUnavailable(
+            "file: backend is debug-only; use age: for production".to_string(),
+        ))
+    } else {
+        Err(KlefError::BackendUnavailable(format!(
+            "unknown backend spec '{spec}' (supported: age:/path/to/file.age)"
+        )))
+    }
 }
 
 /// Pick a non-default backend from `KLEF_TEST_BACKEND` if and only if this is a
