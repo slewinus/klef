@@ -16,12 +16,14 @@ body {
 
 /* Modals use position: absolute relative to body — `position: fixed` is
    unreliable on Tauri's macOS webview.
-   CSS Grid (auto / 1fr rows) gives main a hard size constraint that
-   actually triggers overflow-y:auto, where flex was unreliable on
-   this webview combo. */
+   The Svelte app mounts inside #app (not directly in body), so the
+   grid layout that constrains <main> lives on #app, not on body. */
 body {
   position: relative;
   overflow: hidden;
+}
+#app {
+  height: 100%;
   display: grid;
   grid-template-rows: auto 1fr;
 }
