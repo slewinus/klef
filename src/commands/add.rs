@@ -19,7 +19,7 @@ pub fn run(
     tags: Vec<String>,
 ) -> Result<(), KlefError> {
     let value = read_value(name, value_from_file)?;
-    store.add(name, value.trim(), env_var, note, tags, force)?;
+    store.add(name, value.trim_end(), env_var, note, tags, force)?;
     println!("✓ '{name}' saved");
     Ok(())
 }

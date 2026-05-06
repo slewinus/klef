@@ -27,8 +27,8 @@ fn format_unavailable_msg(inner: &str) -> String {
             "{inner}\n\n\
              hint: klef needs a running Secret Service implementation on Linux.\n\
              - desktop session: install gnome-keyring or KWallet and ensure the daemon is running\n\
-             - server / CI / Docker: wait for v0.3 file backend (https://github.com/slewinus/klef/issues/12)\n\
-             see also https://github.com/slewinus/klef/issues/26 for the headless story."
+             - server / CI / Docker: use the age backend instead — `klef --backend age:/path/to/vault.age ...`\n\
+               (passphrase via KLEF_PASSPHRASE for non-interactive use)"
         )
     }
     #[cfg(target_os = "macos")]
@@ -57,6 +57,10 @@ fn map_err(e: keyring::Error) -> KlefError {
 }
 
 impl Backend for KeychainBackend {
+    fn describe(&self) -> String {
+        "keychain".to_string()
+    }
+
     fn get(&self, name: &str) -> Result<String, KlefError> {
         let entry = keyring::Entry::new(&self.service, name).map_err(map_err)?;
         entry.get_password().map_err(|e| match e {
@@ -94,7 +98,8 @@ mod tests {
     fn linux_hint_mentions_secret_service() {
         let msg = format_unavailable_msg("anything");
         assert!(msg.contains("Secret Service"));
-        assert!(msg.contains("v0.3 file backend"));
+        assert!(msg.contains("age:/path/to/vault.age"));
+        assert!(msg.contains("KLEF_PASSPHRASE"));
     }
 
     #[cfg(target_os = "macos")]

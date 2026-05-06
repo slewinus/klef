@@ -74,7 +74,14 @@ pub fn run(
     } else {
         meta.tags
     };
-    store.add(name, value.trim(), env_var, note_to_use, final_tags, true)?;
+    store.add(
+        name,
+        value.trim_end(),
+        env_var,
+        note_to_use,
+        final_tags,
+        true,
+    )?;
     println!("✓ '{name}' value updated");
     Ok(())
 }

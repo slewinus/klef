@@ -1,6 +1,11 @@
 use crate::error::KlefError;
 
 pub trait Backend: Send + Sync {
+    /// Human-readable backend identifier for diagnostics (e.g. `status`).
+    /// Examples: `"keychain"`, `"age:/path/to/vault.age"`, `"file:/tmp/x.json"`,
+    /// `"memory"`.
+    fn describe(&self) -> String;
+
     /// Retrieve a secret by name.
     ///
     /// # Errors
@@ -36,6 +41,10 @@ impl MemoryBackend {
 }
 
 impl Backend for MemoryBackend {
+    fn describe(&self) -> String {
+        "memory".to_string()
+    }
+
     fn get(&self, name: &str) -> Result<String, KlefError> {
         self.inner
             .lock()
