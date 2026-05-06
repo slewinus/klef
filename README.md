@@ -72,7 +72,9 @@ $ klef run -- node app.js
 Server on port 3000, Stripe wired ✓
 ```
 
-> 🎬 _Asciinema cast en cours d'enregistrement — voir [examples/quickstart/](./examples/quickstart/) pour le scénario complet en attendant._
+[![asciicast](https://asciinema.org/a/5z9zCmNWd1igb3MH.svg)](https://asciinema.org/a/5z9zCmNWd1igb3MH)
+
+_Cast source : [`docs/klef-demo.cast`](./docs/klef-demo.cast) — re-uploadable si asciinema.org tombe._
 
 ## Install
 
