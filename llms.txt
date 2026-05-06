@@ -1,0 +1,35 @@
+# klef
+
+> Local-first CLI vault for API keys, backed by the OS keychain (macOS Keychain, Linux Secret Service). Stores secrets natively (no master password), injects them into projects via `klef:` references in `.env` files resolved at runtime by `klef run`.
+
+klef is meant to replace the pattern of pasting plaintext API keys into `.env` files scattered across projects. A user's `.env` becomes safe to commit because it only contains references like `STRIPE_KEY=klef:stripe`, and `klef run -- npm start` resolves them on-the-fly via `execvp` without writing the values to disk.
+
+## Documentation
+
+- [README](README.md): user-facing overview, install, demo, command table.
+- [Quickstart example](examples/quickstart/): minimal `.env` + consumer script proving the `klef run` flow end-to-end.
+- [Design spec](docs/design/2026-05-05-mvp-design.md): architecture, decisions, error contracts.
+- [LLM usage guide](docs/llm-usage.md): concrete prompt-style examples for LLM agents.
+- [Changelog](CHANGELOG.md): version history.
+- [Release notes](docs/release.md): how to ship a new klef version.
+
+## Commands
+
+- `klef add <name>`: store a key (TTY prompt or stdin). `--value-from-file` for multi-line.
+- `klef get <name>`: print the value to stdout (pipeable).
+- `klef show <name>`: value + metadata.
+- `klef list [--format table|json] [-v|--verbose] [--filter PATTERN]`: list stored keys (no values).
+- `klef rm <name>` (alias `remove`): delete a key.
+- `klef edit <name>`: change value or metadata.
+- `klef rename <old> <new>`: rename a key.
+- `klef set-note <name> <text>`: shortcut for `edit --note`.
+- `klef export <name>... [--format shell|dotenv]`: emit `export VAR=value` lines.
+- `klef import <file.env> [--prefix P] [--dry-run] [--rewrite] [--yes]`: bulk import existing `.env`.
+- `klef run [--env-file FILE] -- <cmd>`: resolve `klef:<name>` refs in `.env` and exec.
+- `klef status [--format text|json]`: diagnostics. Exit 1 on desync.
+- `klef completions <shell>`: emit shell completion script.
+
+## Optional
+
+- [Cargo.toml](Cargo.toml): dependencies and lints.
+- [GitHub issues](https://github.com/slewinus/klef/issues): roadmap and known limits.
