@@ -94,6 +94,13 @@ export function previewDotenvImport(path: string): Promise<DotenvPlan> {
 export function applyDotenvImport(
   items: DotenvPlanItem[],
   project: string,
+  rewriteSource: boolean,
+  sourcePath: string,
 ): Promise<number> {
-  return invoke<number>("apply_dotenv_import", { items, project });
+  return invoke<number>("apply_dotenv_import", {
+    items,
+    project,
+    rewriteSource,
+    sourcePath,
+  });
 }

@@ -122,10 +122,13 @@ pub fn preview_dotenv_import(
 pub fn apply_dotenv_import(
     items: Vec<DotenvPlanItem>,
     project: String,
+    rewrite_source: bool,
+    source_path: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<u32, String> {
     let project_tag = format!("project:{project}");
     let mut count = 0u32;
+    let mut imported_pairs: Vec<(String, String)> = Vec::new();
     for it in items {
         if it.status != "new" && it.status != "conflict" {
             continue;
@@ -137,13 +140,57 @@ pub fn apply_dotenv_import(
             .add(
                 &it.klef_name,
                 &it.value,
-                Some(it.env_var),
+                Some(it.env_var.clone()),
                 None,
                 vec![project_tag.clone()],
                 true,
             )
             .map_err(|e| e.to_string())?;
+        imported_pairs.push((it.env_var, it.klef_name));
         count += 1;
     }
+    if rewrite_source && !imported_pairs.is_empty() {
+        rewrite_dotenv(&source_path, &imported_pairs).map_err(|e| e.to_string())?;
+    }
     Ok(count)
+}
+
+/// Rewrite the source .env so each successfully imported line becomes
+/// `<ENV_VAR>=klef:<klef_name>`. Other lines (comments, empty values,
+/// already-refs, skipped rows) are left intact byte-for-byte.
+///
+/// Atomic via tmp + rename. Preserves the order and format of unrelated
+/// lines.
+fn rewrite_dotenv(path: &str, imported: &[(String, String)]) -> std::io::Result<()> {
+    let pb = std::path::PathBuf::from(path);
+    let original = std::fs::read_to_string(&pb)?;
+    let map: std::collections::HashMap<&str, &str> = imported
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    let mut out = String::with_capacity(original.len());
+    for line in original.split_inclusive('\n') {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('#') || trimmed.trim().is_empty() {
+            out.push_str(line);
+            continue;
+        }
+        if let Some((key, _rest)) = trimmed.split_once('=')
+            && let Some(klef_name) = map.get(key.trim())
+        {
+            // Preserve any leading whitespace from the original line.
+            let indent_len = line.len() - trimmed.len();
+            out.push_str(&line[..indent_len]);
+            out.push_str(key.trim());
+            out.push_str("=klef:");
+            out.push_str(klef_name);
+            out.push('\n');
+        } else {
+            out.push_str(line);
+        }
+    }
+    let tmp = pb.with_extension("env.tmp");
+    std::fs::write(&tmp, out)?;
+    std::fs::rename(&tmp, &pb)?;
+    Ok(())
 }

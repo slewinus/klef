@@ -13,6 +13,7 @@
   // The modal is mounted/unmounted per-import (see {#if dotenvPlan} in
   // App.svelte) so we want a one-shot snapshot, not a reactive binding.
   let project = $state(untrack(() => plan.suggested_project));
+  let rewriteSource = $state(true);
   let submitting = $state(false);
   let error = $state<string | null>(null);
 
@@ -40,7 +41,12 @@
     error = null;
     try {
       const items = plan.items.filter((it) => included[it.env_var]);
-      const count = await applyDotenvImport(items, project.trim());
+      const count = await applyDotenvImport(
+        items,
+        project.trim(),
+        rewriteSource,
+        plan.source_path,
+      );
       onImported(count);
     } catch (err) {
       error = String(err);
@@ -80,6 +86,11 @@
       spellcheck="false"
     />
     <small>All imported keys will be tagged <code>project:{project}</code></small>
+  </label>
+
+  <label class="checkbox">
+    <input type="checkbox" bind:checked={rewriteSource} />
+    <span>Rewrite source <code>.env</code> with <code>klef:</code> refs after import</span>
   </label>
 
   <div class="rows">
@@ -163,6 +174,8 @@
   }
   input[type="text"]:focus { border-color: #007aff; box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2); }
   small { color: #98989d; font-size: 10px; }
+  label.checkbox { flex-direction: row; align-items: center; gap: 6px; font-size: 12px; color: inherit; }
+  label.checkbox input { width: auto; }
   code { background: #e5e5ea; padding: 0 4px; border-radius: 3px; }
   .rows { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
   label.row {

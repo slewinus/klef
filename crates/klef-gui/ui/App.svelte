@@ -50,6 +50,17 @@
     filterKeys(filterByProject(sortByLastUsed(keys), selectedProject), query),
   );
 
+  // Auto-clear a stale project filter: if the user just deleted the last
+  // key in a project, the chip would otherwise stay active and the list
+  // would look empty for no obvious reason.
+  $effect(() => {
+    if (selectedProject === null) return;
+    const tag = `project:${selectedProject}`;
+    if (!keys.some((k) => k.tags?.includes(tag))) {
+      selectedProject = null;
+    }
+  });
+
   function showToast(msg: string) {
     toast = msg;
     if (toastTimer) clearTimeout(toastTimer);

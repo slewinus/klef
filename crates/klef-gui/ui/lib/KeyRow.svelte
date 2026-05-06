@@ -7,9 +7,10 @@
     onCopy: (key: KeyDto) => void | Promise<void>;
     onEdit: (key: KeyDto) => void;
     onDelete: (key: KeyDto) => void;
+    onSelect?: (key: KeyDto) => void;
   }
 
-  let { key, selected = false, onCopy, onEdit, onDelete }: Props = $props();
+  let { key, selected = false, onCopy, onEdit, onDelete, onSelect }: Props = $props();
   let copying = $state(false);
   let rowEl: HTMLDivElement;
 
