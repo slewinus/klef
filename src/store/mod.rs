@@ -4,6 +4,7 @@ pub mod backend;
 pub mod file;
 pub mod index;
 pub mod keychain;
+pub(crate) mod lock;
 mod ops;
 
 pub use age_backend::AgeBackend;
@@ -36,6 +37,13 @@ pub trait MetaStore: Send + Sync {
     /// # Errors
     /// Returns an index error if the store cannot be written.
     fn save_index(&self, data: &IndexData) -> Result<(), KlefError>;
+
+    /// Path of the resource the inter-process lock should protect.
+    ///
+    /// Used by [`Store`] to acquire an exclusive flock around any
+    /// load → mutate → save sequence (closes #61). The lock file itself
+    /// is the sibling `<lock_path>.lock` — see `crate::store::lock`.
+    fn lock_path(&self) -> std::path::PathBuf;
 }
 
 /// Implement `MetaStore` for `IndexFile` so the keychain / file backends can
@@ -47,6 +55,10 @@ impl MetaStore for IndexFile {
 
     fn save_index(&self, data: &IndexData) -> Result<(), KlefError> {
         self.save(data)
+    }
+
+    fn lock_path(&self) -> std::path::PathBuf {
+        self.path().to_path_buf()
     }
 }
 
