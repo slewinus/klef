@@ -175,6 +175,7 @@ impl AgeBackend {
                         tags: vec![],
                         added_at: now,
                         updated_at: now,
+                        last_used_at: None,
                     },
                 );
             }

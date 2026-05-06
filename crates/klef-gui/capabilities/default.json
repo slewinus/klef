@@ -9,7 +9,10 @@
     "core:window:allow-hide",
     "core:window:allow-set-focus",
     "clipboard-manager:allow-write-text",
-    "positioner:default",
-    "positioner:allow-move-window"
+    "clipboard-manager:allow-read-text",
+    "global-shortcut:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered"
   ]
 }

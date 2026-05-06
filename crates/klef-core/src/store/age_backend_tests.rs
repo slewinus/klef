@@ -93,6 +93,7 @@ fn vault_round_trips_metadata_through_encryption() {
             tags: vec!["billing".into()],
             added_at: time::macros::datetime!(2026-05-06 0:00 UTC),
             updated_at: time::macros::datetime!(2026-05-06 0:00 UTC),
+            last_used_at: None,
         },
     );
     b.save_index(&data).unwrap();
@@ -124,6 +125,7 @@ fn vault_metadata_not_in_ciphertext() {
             tags: vec![],
             added_at: time::macros::datetime!(2026-05-06 0:00 UTC),
             updated_at: time::macros::datetime!(2026-05-06 0:00 UTC),
+            last_used_at: None,
         },
     );
     b.save_index(&data).unwrap();
