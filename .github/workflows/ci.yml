@@ -43,8 +43,21 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: cargo clippy
+      # klef-gui is macOS-only by design (Tauri menu bar app). Skip it on
+      # Linux jobs rather than installing the heavy webkit2gtk deps for a
+      # crate that won't ship on this platform.
+      - name: cargo clippy (linux)
+        if: runner.os == 'Linux'
+        run: cargo clippy --workspace --exclude klef-gui --all-targets --all-features -- -D warnings
+
+      - name: cargo test (linux)
+        if: runner.os == 'Linux'
+        run: cargo test --workspace --exclude klef-gui --all-features
+
+      - name: cargo clippy (macos)
+        if: runner.os == 'macOS'
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-      - name: cargo test
+      - name: cargo test (macos)
+        if: runner.os == 'macOS'
         run: cargo test --workspace --all-features
