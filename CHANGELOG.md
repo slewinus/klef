@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-06
+
 ### Added
 
 - `klef import <file.env>` bulk-import command — derives klef names from env keys, shows a redacted plan, prompts before writing, optional `--rewrite` replaces literals with `klef:` references in the source file (#7).
@@ -16,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `klef list --verbose` adds an `ADDED` column showing when each key was first saved (`YYYY-MM-DD`) (#16).
 - `klef list --filter <PATTERN>` filters by case-insensitive substring on name or note. Composes with `--verbose` (#17).
 - `klef remove` alias for `klef rm`. The acronym stays for muscle memory; `remove` exists for explicit-form preference.
+- Zsh dynamic completion for key names (`klef show str<Tab>` → `stripe`). Adds a hidden `klef _names` helper that the completion script invokes at runtime. Bash and fish keep static completion for now (#28; bash/fish dynamic are follow-up work).
+- GitHub Actions release workflow (`.github/workflows/release.yml`) builds binaries on tag push for x86_64-apple-darwin, aarch64-apple-darwin, x86_64-unknown-linux-gnu, and aarch64-unknown-linux-gnu — all on native runners. Each tarball ships with binary + LICENSE + README + CHANGELOG. `workflow_dispatch` trigger lets us dry-run the pipeline (#11).
+- Homebrew formula scaffolding: `homebrew/klef.rb` template + `scripts/update-homebrew-formula.sh` that downloads release tarballs, computes SHA-256s, and produces a populated formula ready to commit to a separate `slewinus/homebrew-tap` repo. One-time setup is documented in `docs/release.md` (#10).
 
 ### Changed
 
@@ -45,5 +50,6 @@ First public release. Local-first CLI vault for API keys.
 - `keyring` crate compiled with explicit `apple-native` + `sync-secret-service` + `crypto-rust` features (the default crates.io build ships zero backends and silently no-ops).
 - No telemetry. No cloud. No external network calls.
 
-[Unreleased]: https://github.com/slewinus/klef/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/slewinus/klef/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/slewinus/klef/releases/tag/v0.2.0
 [0.1.0]: https://github.com/slewinus/klef/releases/tag/v0.1.0
