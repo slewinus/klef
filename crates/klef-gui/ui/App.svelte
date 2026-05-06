@@ -27,12 +27,15 @@
     }
   }
 
-  // Refresh the key list. Called once on mount and again every time the
-  // popover regains focus, so that `klef add ...` from a terminal becomes
-  // visible the next time the user opens the popover. We don't watch the
-  // index file because (a) the focus model is more predictable for users
-  // and (b) it avoids spawning a notify thread for a workflow where the
-  // popover is closed most of the time.
+  // Refresh the key list. Called once on mount, then every time the popover
+  // is re-opened via the tray icon, so that `klef add ...` from a terminal
+  // becomes visible the next time the user opens the popover.
+  //
+  // Why a Tauri-emitted event instead of `window.addEventListener("focus")`:
+  // toggling OS-level window visibility (hide/show) via Rust does not
+  // reliably trigger a DOM focus event — the document never lost focus from
+  // the webview's perspective. We emit an explicit `popover-shown` event
+  // from `toggle_window` in main.rs and listen for it here.
   async function refresh() {
     try {
       keys = await listKeys();
@@ -44,10 +47,11 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     refresh();
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
+    const { listen } = await import("@tauri-apps/api/event");
+    const unlisten = await listen("popover-shown", () => refresh());
+    return () => unlisten();
   });
 </script>
 

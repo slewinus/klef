@@ -4,7 +4,7 @@
 
 use klef_core::{KeyDto, build_store};
 use tauri::{
-    Manager as _, WindowEvent,
+    Emitter as _, Manager as _, WindowEvent,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use tauri_plugin_positioner::{Position, WindowExt as _};
@@ -48,6 +48,12 @@ fn toggle_window(app: &tauri::AppHandle) {
         let _ = window.move_window(Position::TrayCenter);
         let _ = window.show();
         let _ = window.set_focus();
+        // Notify the frontend that the popover just opened so it can refresh
+        // its data. The DOM `focus` event isn't reliable on Tauri's webview
+        // when toggling visibility — the OS-level show/hide doesn't always
+        // propagate as a JS focus event. Emitting an explicit event sidesteps
+        // that ambiguity.
+        let _ = window.emit("popover-shown", ());
     }
 }
 
