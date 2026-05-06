@@ -80,6 +80,18 @@ fn record_access(name: String, state: tauri::State<'_, AppState>) -> Result<(), 
     state.store.record_access(&name).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn open_keychain_access() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    return std::process::Command::new("open")
+        .args(["-a", "Keychain Access"])
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string());
+    #[cfg(not(target_os = "macos"))]
+    Err("only available on macOS".to_string())
+}
+
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 fn edit_key(
@@ -168,6 +180,7 @@ fn toggle_window(app: &tauri::AppHandle) {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -279,7 +292,8 @@ fn main() {
             add_key,
             delete_key,
             edit_key,
-            record_access
+            record_access,
+            open_keychain_access
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -39,3 +39,16 @@ export async function setupPopoverLifecycle(
 export async function hideCurrentPopover(): Promise<void> {
   await getCurrentWebviewWindow().hide();
 }
+
+/**
+ * Heuristic match on Keychain access denial errors. Used to decide
+ * whether to show the dedicated help screen instead of a raw error.
+ */
+export function isKeychainDenied(err: string): boolean {
+  const e = err.toLowerCase();
+  return (
+    e.includes("denied") ||
+    e.includes("not authorized") ||
+    e.includes("user did not consent")
+  );
+}

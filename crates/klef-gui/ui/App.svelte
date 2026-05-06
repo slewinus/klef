@@ -11,12 +11,14 @@
   import { isNavKey, nextIndexFor } from "./lib/keyboardNav";
   import {
     hideCurrentPopover,
+    isKeychainDenied,
     setupPopoverLifecycle,
   } from "./lib/popoverLifecycle";
   import type { KeyDto } from "./lib/types";
   import AddKeyModal from "./lib/AddKeyModal.svelte";
   import ConfirmDialog from "./lib/ConfirmDialog.svelte";
   import EditKeyModal from "./lib/EditKeyModal.svelte";
+  import KeychainAccessHelp from "./lib/KeychainAccessHelp.svelte";
   import KeyRow from "./lib/KeyRow.svelte";
   import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
@@ -191,6 +193,8 @@
 <main>
   {#if loading}
     <div class="empty">Loading…</div>
+  {:else if loadError && isKeychainDenied(loadError)}
+    <KeychainAccessHelp onRetry={refresh} />
   {:else if loadError}
     <div class="err">Failed to load keys: {loadError}</div>
   {:else if keys.length === 0}
