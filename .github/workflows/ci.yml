@@ -43,6 +43,25 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # macOS only: build the Svelte frontend before any cargo command,
+      # because tauri::generate_context! validates that frontendDist exists
+      # at compile time. Linux skips klef-gui entirely so it doesn't need
+      # the frontend build.
+      - name: Setup Node (macos)
+        if: runner.os == 'macOS'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: crates/klef-gui/package-lock.json
+
+      - name: Build klef-gui frontend (macos)
+        if: runner.os == 'macOS'
+        working-directory: crates/klef-gui
+        run: |
+          npm ci
+          npm run build
+
       # klef-gui is macOS-only by design (Tauri menu bar app). Skip it on
       # Linux jobs rather than installing the heavy webkit2gtk deps for a
       # crate that won't ship on this platform.
