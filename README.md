@@ -1,5 +1,8 @@
 # klef
 
+> **klef stocke tes clés API dans le Keychain de l'OS et les résout au runtime dans tes `.env` (`STRIPE_KEY=klef:stripe`). Pas de mot de passe maître, pas de cloud, pas de plaintext sur disque.**
+
+[![Crates.io](https://img.shields.io/crates/v/klef.svg)](https://crates.io/crates/klef)
 [![CI](https://github.com/slewinus/klef/actions/workflows/ci.yml/badge.svg)](https://github.com/slewinus/klef/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
@@ -23,6 +26,19 @@ Un CLI local qui :
   ```
   Puis `klef run -- npm start` résout tout ça et exécute ta commande avec les bonnes vars d'env.
 - **Reste 100% local** — pas de serveur, pas de cloud, pas de télémétrie.
+
+## Pourquoi pas un autre outil ?
+
+| | klef | 1Password CLI | doppler / infisical | direnv + .env |
+|---|---|---|---|---|
+| Local-first | ✅ | ❌ (compte 1P) | ❌ (cloud) | ✅ |
+| Stockage Keychain natif | ✅ | via `op` | ❌ | ❌ |
+| Références dans `.env` | ✅ `klef:` | ✅ `op://` | ✅ `{{var}}` | ❌ littéral |
+| Pas de mot de passe maître | ✅ (Touch ID) | ❌ | ❌ | ✅ |
+| Gratuit | ✅ | $3/mois | freemium | ✅ |
+| Multi-machine sync | ❌ (v0.4) | ✅ | ✅ | ❌ |
+
+klef cible le cas mono-utilisateur, mono-machine, local-first, gratuit. Les concurrents sont excellents — c'est juste une niche différente. (Comparaison vérifiée le 2026-05-06.)
 
 ## Démo
 
@@ -60,10 +76,10 @@ Server on port 3000, Stripe wired ✓
 
 ## Install
 
-### Depuis les sources (Rust ≥ 1.85)
+### Cargo (recommandé)
 
 ```bash
-cargo install --git https://github.com/slewinus/klef
+cargo install klef
 ```
 
 ### Homebrew (macOS / Linux desktop)
@@ -73,11 +89,9 @@ brew tap slewinus/tap
 brew install klef
 ```
 
-_Disponible dès la release v0.2.0 (tag à venir)._
-
 ### Binaires pré-compilés
 
-À venir, voir [#11](https://github.com/slewinus/klef/issues/11).
+Disponibles sur la [page Releases](https://github.com/slewinus/klef/releases) — macOS Intel + Apple Silicon, Linux x86_64 + ARM. Décompresser et déplacer dans le `$PATH`.
 
 ### Auto-complétion shell
 
