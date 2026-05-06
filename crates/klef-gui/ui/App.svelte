@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { copyToClipboard, getKeyValue, listKeys } from "./lib/api";
-  import { filterKeys } from "./lib/filter";
+  import { filterByProject, filterKeys } from "./lib/filter";
   import type { KeyDto } from "./lib/types";
   import KeyRow from "./lib/KeyRow.svelte";
+  import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
   import Toast from "./lib/Toast.svelte";
 
@@ -14,9 +15,15 @@
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   let query = $state("");
+  let selectedProject = $state<string | null>(null);
   let searchBar: SearchBar | undefined = $state();
 
-  let visibleKeys = $derived(filterKeys(keys, query));
+  // Filter pipeline: project first (narrows the candidate set), then search
+  // query. Order doesn't change correctness but project-first is cheaper
+  // when a project is selected.
+  let visibleKeys = $derived(
+    filterKeys(filterByProject(keys, selectedProject), query),
+  );
 
   function showToast(msg: string) {
     toast = msg;
@@ -65,6 +72,11 @@
 <header>
   <div class="title">klef</div>
   <SearchBar bind:this={searchBar} bind:value={query} />
+  <ProjectChips
+    {keys}
+    selected={selectedProject}
+    onSelect={(p) => (selectedProject = p)}
+  />
 </header>
 
 <main>
@@ -78,7 +90,15 @@
     </div>
   {:else if visibleKeys.length === 0}
     <div class="empty">
-      No keys match <strong>“{query}”</strong>
+      No keys match
+      {#if query && selectedProject}
+        <strong>“{query}”</strong> in project
+        <strong>{selectedProject}</strong>
+      {:else if query}
+        <strong>“{query}”</strong>
+      {:else if selectedProject}
+        project <strong>{selectedProject}</strong>
+      {/if}
     </div>
   {:else}
     {#each visibleKeys as key (key.name)}

@@ -20,3 +20,16 @@ export function filterKeys(keys: KeyDto[], query: string): KeyDto[] {
     return false;
   });
 }
+
+/**
+ * Keep only keys tagged `project:<name>` for the given project. Returns the
+ * input unchanged when no project is selected.
+ */
+export function filterByProject(
+  keys: KeyDto[],
+  project: string | null,
+): KeyDto[] {
+  if (project === null) return keys;
+  const tag = `project:${project}`;
+  return keys.filter((k) => k.tags?.includes(tag));
+}
