@@ -58,6 +58,10 @@ pub enum Command {
         /// Trailing whitespace is stripped (matches stdin/prompt behavior).
         #[arg(long, value_name = "FILE")]
         value_from_file: Option<PathBuf>,
+        /// Open `$VISUAL` (or `$EDITOR`) to edit the note. Falls back to a
+        /// single-line stdin prompt if neither is set.
+        #[arg(long, conflicts_with_all = ["note", "as", "value_from_file"])]
+        note_edit: bool,
     },
     /// Rename a key.
     Rename { old: String, new: String },

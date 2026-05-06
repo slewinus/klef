@@ -117,7 +117,7 @@ klef completions fish > ~/.config/fish/completions/klef.fish
 | `klef show <name>` | Valeur + métadonnées. |
 | `klef list [--format table\|json] [-v\|--verbose] [--filter PATTERN]` | Lister les clés (jamais les valeurs). `--verbose` ajoute la date d'ajout, `--filter` cherche en sous-chaîne. |
 | `klef rm <name>` (alias `remove`) | Supprimer une clé. |
-| `klef edit <name>` | Changer la valeur ou les métadonnées. `--value-from-file` accepté ici aussi. |
+| `klef edit <name>` | Changer la valeur ou les métadonnées. `--value-from-file` pour les secrets multi-lignes. `--note-edit` ouvre `$VISUAL`/`$EDITOR` pour éditer la note. |
 | `klef set-note <name> <text>` | Raccourci pour `edit --note`. |
 | `klef rename <old> <new>` | Renommer une clé. |
 | `klef export <name>... [--format shell\|dotenv]` | Émettre des lignes `export`. |
