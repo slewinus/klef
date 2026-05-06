@@ -10,8 +10,6 @@
     "core:window:allow-set-focus",
     "clipboard-manager:allow-write-text",
     "clipboard-manager:allow-read-text",
-    "positioner:default",
-    "positioner:allow-move-window",
     "global-shortcut:default",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",

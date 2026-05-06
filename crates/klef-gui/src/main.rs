@@ -3,19 +3,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use klef_core::{KeyDto, build_store};
-use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     Emitter as _, Manager as _,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
-use tauri_plugin_positioner::{Position, WindowExt as _};
-
-/// Set to true the first time the user clicks the tray icon. The positioner
-/// plugin only learns the tray's screen position from `on_tray_event`, so
-/// `Position::TrayCenter` panics if invoked before the first tray click.
-/// On hotkey-only activation we fall back to `Position::TopRight` until
-/// the tray geometry is known.
-static TRAY_POS_KNOWN: AtomicBool = AtomicBool::new(false);
 
 /// State held by the Tauri runtime: a single `Store` instance shared across
 /// all commands. Initialized on app startup with the production Keychain
@@ -104,22 +95,45 @@ fn edit_key(
         .map_err(|e| e.to_string())
 }
 
-/// Place the window in the top-right corner of the current monitor, with
-/// some breathing room from the screen edges — used as a fallback when the
-/// positioner plugin doesn't yet know the tray geometry. `Position::TopRight`
-/// from the plugin glues the window flush against (0, 0)-from-right which
-/// looks awkward on macOS.
+/// Place the window centered under the tray icon, querying the icon's
+/// screen rect directly from Tauri (works even before the user has clicked
+/// the tray for the first time, unlike `Position::TrayCenter` from the
+/// positioner plugin which depends on `on_tray_event` having fired).
+///
+/// Returns true when the position was successfully computed and applied.
+fn place_under_tray(app: &tauri::AppHandle, window: &tauri::WebviewWindow) -> bool {
+    let Some(tray) = app.tray_by_id("main") else {
+        return false;
+    };
+    let Ok(Some(rect)) = tray.rect() else {
+        return false;
+    };
+    let scale = window.scale_factor().unwrap_or(1.0);
+    // Tauri 2's Rect carries position/size as enums (Physical or Logical
+    // depending on platform). Convert to physical pixels for set_position.
+    let pos = rect.position.to_physical::<f64>(scale);
+    let size = rect.size.to_physical::<f64>(scale);
+    let win = window.outer_size().unwrap_or_default();
+    let tray_center_x = pos.x + size.width / 2.0;
+    #[allow(clippy::cast_possible_truncation)]
+    let x = (tray_center_x - f64::from(win.width) / 2.0).round() as i32;
+    #[allow(clippy::cast_possible_truncation)]
+    let y = (pos.y + size.height + 4.0).round() as i32;
+    let _ = window.set_position(tauri::PhysicalPosition::new(x.max(0), y.max(0)));
+    true
+}
+
+/// Last-resort fallback: top-right of the current monitor with margins.
+/// Used only when `tray.rect()` is unavailable (e.g. the tray icon is
+/// not yet attached to a screen by the OS).
 fn place_top_right_with_margin(window: &tauri::WebviewWindow) {
     let Ok(Some(monitor)) = window.current_monitor() else {
         return;
     };
     let screen = monitor.size();
     let win = window.outer_size().unwrap_or_default();
-    let margin_right = 12i32;
-    let margin_top = 32i32; // clear of the macOS menu bar (~24-28px tall)
-    let x = i32::try_from(screen.width.saturating_sub(win.width)).unwrap_or(0) - margin_right;
-    let y = margin_top;
-    let _ = window.set_position(tauri::PhysicalPosition::new(x.max(0), y));
+    let x = i32::try_from(screen.width.saturating_sub(win.width)).unwrap_or(0) - 12;
+    let _ = window.set_position(tauri::PhysicalPosition::new(x.max(0), 32));
 }
 
 fn toggle_window(app: &tauri::AppHandle) {
@@ -129,10 +143,7 @@ fn toggle_window(app: &tauri::AppHandle) {
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();
     } else {
-        if TRAY_POS_KNOWN.load(Ordering::Relaxed) {
-            let _ = window.move_window(Position::TrayCenter);
-        } else {
-            // Hotkey-first activation: positioner has no tray geometry yet.
+        if !place_under_tray(app, &window) {
             place_top_right_with_margin(&window);
         }
         let _ = window.show();
@@ -148,7 +159,6 @@ fn toggle_window(app: &tauri::AppHandle) {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_positioner::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -195,13 +205,6 @@ fn main() {
                 // proper alpha-channel logo (S7 polish sprint).
                 .icon_as_template(false)
                 .on_tray_icon_event(|tray, event| {
-                    // The positioner plugin reads the tray geometry from
-                    // every event it sees here. Mark the flag so subsequent
-                    // hotkey-triggered shows can use Position::TrayCenter
-                    // safely (it would panic otherwise).
-                    tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
-                    TRAY_POS_KNOWN.store(true, Ordering::Relaxed);
-
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
