@@ -3,11 +3,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use klef_core::{KeyDto, build_store};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     Emitter as _, Manager as _,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use tauri_plugin_positioner::{Position, WindowExt as _};
+
+/// Set to true the first time the user clicks the tray icon. The positioner
+/// plugin only learns the tray's screen position from `on_tray_event`, so
+/// `Position::TrayCenter` panics if invoked before the first tray click.
+/// On hotkey-only activation we fall back to `Position::TopRight` until
+/// the tray geometry is known.
+static TRAY_POS_KNOWN: AtomicBool = AtomicBool::new(false);
 
 /// State held by the Tauri runtime: a single `Store` instance shared across
 /// all commands. Initialized on app startup with the production Keychain
@@ -103,7 +111,16 @@ fn toggle_window(app: &tauri::AppHandle) {
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();
     } else {
-        let _ = window.move_window(Position::TrayCenter);
+        let pos = if TRAY_POS_KNOWN.load(Ordering::Relaxed) {
+            Position::TrayCenter
+        } else {
+            // First activation came from ⌘⇧K, never via the tray click.
+            // The positioner plugin doesn't know the tray geometry yet,
+            // so TrayCenter would panic. Fall back to the top-right of the
+            // screen — visually close to where the menu bar icon sits.
+            Position::TopRight
+        };
+        let _ = window.move_window(pos);
         let _ = window.show();
         let _ = window.set_focus();
         // Notify the frontend that the popover just opened so it can
@@ -164,7 +181,12 @@ fn main() {
                 // proper alpha-channel logo (S7 polish sprint).
                 .icon_as_template(false)
                 .on_tray_icon_event(|tray, event| {
+                    // The positioner plugin reads the tray geometry from
+                    // every event it sees here. Mark the flag so subsequent
+                    // hotkey-triggered shows can use Position::TrayCenter
+                    // safely (it would panic otherwise).
                     tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
+                    TRAY_POS_KNOWN.store(true, Ordering::Relaxed);
 
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
