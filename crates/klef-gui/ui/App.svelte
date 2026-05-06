@@ -7,6 +7,7 @@
     listKeys,
   } from "./lib/api";
   import { filterByProject, filterKeys } from "./lib/filter";
+  import { isNavKey, nextIndexFor } from "./lib/keyboardNav";
   import {
     hideCurrentPopover,
     setupPopoverLifecycle,
@@ -28,6 +29,7 @@
 
   let query = $state("");
   let selectedProject = $state<string | null>(null);
+  let selectedIndex = $state(0);
   let searchBar: SearchBar | undefined = $state();
 
   let showAddModal = $state(false);
@@ -86,33 +88,41 @@
     keys = await listKeys();
   }
 
-  // Modals own their Escape handling. Skip key handling here whenever any
-  // modal is open so we don't fight them.
+  // Skip our key handlers when a modal is open — modals own Escape etc.
   let anyModalOpen = $derived(
     showAddModal || pendingDelete !== null || editTarget !== null,
   );
 
+  // Reset selection when the visible list changes (search/project filter).
+  $effect(() => {
+    visibleKeys;
+    selectedIndex = 0;
+  });
+
   function handleKeydown(e: KeyboardEvent) {
     if (anyModalOpen) return;
-    // Esc: clear the query if there's one, otherwise hide the popover.
     if (e.key === "Escape") {
       if (query) {
         query = "";
       } else {
         hideCurrentPopover();
       }
+      return;
     }
-    // Enter on a single visible result triggers copy.
-    if (e.key === "Enter" && visibleKeys.length === 1) {
-      handleCopy(visibleKeys[0]);
+    if (isNavKey(e.key)) {
+      e.preventDefault();
+      selectedIndex = nextIndexFor(e.key, selectedIndex, visibleKeys.length);
+      return;
+    }
+    // Enter copies the selected row.
+    if (e.key === "Enter" && visibleKeys.length > 0) {
+      const target = visibleKeys[selectedIndex] ?? visibleKeys[0];
+      handleCopy(target);
     }
   }
 
-  // Refresh keys + refocus the search bar. Called once on mount and again
-  // every time the popover is opened via the tray icon or ⌘⇧K. The Rust
-  // side emits `popover-shown` from `toggle_window`; using that explicit
-  // event sidesteps the unreliable DOM `focus` event which doesn't fire
-  // on Tauri webview show/hide.
+  // Refresh keys + refocus the search bar. Called on mount and on each
+  // popover-shown event from Rust (see lib/popoverLifecycle).
   async function refresh() {
     try {
       keys = await listKeys();
@@ -122,8 +132,6 @@
     } finally {
       loading = false;
     }
-    // Tiny delay so the SearchBar mounts before we try to focus it on the
-    // first call. Subsequent calls fire while the input already exists.
     setTimeout(() => searchBar?.focus(), 0);
   }
 
@@ -171,19 +179,15 @@
   {:else if visibleKeys.length === 0}
     <div class="empty">
       No keys match
-      {#if query && selectedProject}
-        <strong>“{query}”</strong> in project
-        <strong>{selectedProject}</strong>
-      {:else if query}
-        <strong>“{query}”</strong>
-      {:else if selectedProject}
-        project <strong>{selectedProject}</strong>
-      {/if}
+      {#if query}<strong>“{query}”</strong>{/if}
+      {#if query && selectedProject}in{/if}
+      {#if selectedProject}project <strong>{selectedProject}</strong>{/if}
     </div>
   {:else}
-    {#each visibleKeys as key (key.name)}
+    {#each visibleKeys as key, i (key.name)}
       <KeyRow
         {key}
+        selected={i === selectedIndex}
         onCopy={handleCopy}
         onEdit={(k) => (editTarget = k)}
         onDelete={(k) => (pendingDelete = k)}
@@ -270,19 +274,9 @@
     color: #6e6e73;
     text-align: center;
   }
-  .err {
-    color: #ff3b30;
-    padding: 16px;
-    font-size: 12px;
-  }
-  code {
-    background: #e5e5ea;
-    padding: 1px 4px;
-    border-radius: 3px;
-  }
-  strong {
-    color: #1d1d1f;
-  }
+  .err { color: #ff3b30; padding: 16px; font-size: 12px; }
+  code { background: #e5e5ea; padding: 1px 4px; border-radius: 3px; }
+  strong { color: #1d1d1f; }
   @media (prefers-color-scheme: dark) {
     header {
       background: #2c2c2e;
