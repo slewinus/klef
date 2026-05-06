@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { applyDotenvImport, type DotenvPlan } from "./api";
 
   interface Props {
@@ -9,15 +10,22 @@
 
   let { plan, onClose, onImported }: Props = $props();
 
-  let project = $state(plan.suggested_project);
+  // The modal is mounted/unmounted per-import (see {#if dotenvPlan} in
+  // App.svelte) so we want a one-shot snapshot, not a reactive binding.
+  let project = $state(untrack(() => plan.suggested_project));
   let submitting = $state(false);
   let error = $state<string | null>(null);
 
   // Track per-row "include" toggle. Default: include new + conflict, skip
   // ref + empty. User can flip individual rows.
   let included = $state<Record<string, boolean>>(
-    Object.fromEntries(
-      plan.items.map((it) => [it.env_var, it.status === "new" || it.status === "conflict"]),
+    untrack(() =>
+      Object.fromEntries(
+        plan.items.map((it) => [
+          it.env_var,
+          it.status === "new" || it.status === "conflict",
+        ]),
+      ),
     ),
   );
 
