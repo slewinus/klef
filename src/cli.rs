@@ -115,6 +115,12 @@ pub enum Command {
         /// Conflict resolution when the same env-var name appears in multiple files.
         #[arg(long, value_enum, default_value_t = ConflictMode::FirstFound)]
         on_conflict: ConflictMode,
+        /// Regex patterns matched against env-var names (KEY side). Excludes matches from the import. Repeatable.
+        #[arg(long, value_name = "PATTERN")]
+        skip_pattern: Vec<String>,
+        /// Apply a built-in skip list of common non-secret config names (`PORT`, `DB_NAME`, `NODE_ENV`, etc.).
+        #[arg(long)]
+        skip_defaults: bool,
     },
     /// Internal: print one stored key name per line. Used by shell completion scripts.
     /// Hidden from --help.
