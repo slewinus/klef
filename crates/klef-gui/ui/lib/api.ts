@@ -37,6 +37,25 @@ export function deleteKey(name: string): Promise<void> {
   return invoke<void>("delete_key", { name });
 }
 
+export interface EditKeyInput {
+  name: string;
+  /** undefined = preserve the existing secret value. */
+  value?: string;
+  envVar?: string;
+  note?: string;
+  tags: string[];
+}
+
+export function editKey(input: EditKeyInput): Promise<void> {
+  return invoke<void>("edit_key", {
+    name: input.name,
+    value: input.value ?? null,
+    envVar: input.envVar ?? null,
+    note: input.note ?? null,
+    tags: input.tags,
+  });
+}
+
 // Copies the value AND schedules an auto-clear after 30 s. See
 // `./clipboard.ts` for the semantics around concurrent copies and
 // best-effort clearing.

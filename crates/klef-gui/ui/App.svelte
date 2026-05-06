@@ -10,6 +10,7 @@
   import type { KeyDto } from "./lib/types";
   import AddKeyModal from "./lib/AddKeyModal.svelte";
   import ConfirmDialog from "./lib/ConfirmDialog.svelte";
+  import EditKeyModal from "./lib/EditKeyModal.svelte";
   import KeyRow from "./lib/KeyRow.svelte";
   import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
@@ -26,6 +27,7 @@
   let searchBar: SearchBar | undefined = $state();
 
   let showAddModal = $state(false);
+  let editTarget = $state<KeyDto | null>(null);
   let pendingDelete = $state<KeyDto | null>(null);
 
   // Filter pipeline: project first (narrows the candidate set), then search
@@ -70,6 +72,13 @@
     showToast("key added");
     // Refresh from disk so we pick up the canonical KeyMeta (default
     // env_var, sorted tags) rather than reconstructing it client-side.
+    keys = await listKeys();
+  }
+
+  async function handleSaved() {
+    const name = editTarget?.name ?? "key";
+    editTarget = null;
+    showToast(`${name} updated`);
     keys = await listKeys();
   }
 
@@ -147,6 +156,7 @@
       <KeyRow
         {key}
         onCopy={handleCopy}
+        onEdit={(k) => (editTarget = k)}
         onDelete={(k) => (pendingDelete = k)}
       />
     {/each}
@@ -159,6 +169,14 @@
   <AddKeyModal
     onClose={() => (showAddModal = false)}
     onAdded={handleAdded}
+  />
+{/if}
+
+{#if editTarget}
+  <EditKeyModal
+    target={editTarget}
+    onClose={() => (editTarget = null)}
+    onSaved={handleSaved}
   />
 {/if}
 

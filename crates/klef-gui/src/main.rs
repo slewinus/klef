@@ -64,6 +64,30 @@ fn delete_key(name: String, state: tauri::State<'_, AppState>) -> Result<(), Str
     state.store.remove(&name).map_err(|e| e.to_string())
 }
 
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+fn edit_key(
+    name: String,
+    value: Option<String>,
+    env_var: Option<String>,
+    note: Option<String>,
+    tags: Vec<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    // value=None means "keep the current value" — preserves the secret
+    // when the user only edits metadata (the common case). We re-read it
+    // from the backend rather than asking the webview to round-trip the
+    // plaintext, so a metadata-only edit never exposes the value to JS.
+    let value_to_use = match value {
+        Some(v) => v,
+        None => state.store.get_value(&name).map_err(|e| e.to_string())?,
+    };
+    state
+        .store
+        .add(&name, &value_to_use, env_var, note, tags, true)
+        .map_err(|e| e.to_string())
+}
+
 fn toggle_window(app: &tauri::AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -176,7 +200,8 @@ fn main() {
             list_keys,
             get_key_value,
             add_key,
-            delete_key
+            delete_key,
+            edit_key
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

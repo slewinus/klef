@@ -4,10 +4,11 @@
   interface Props {
     key: KeyDto;
     onCopy: (key: KeyDto) => void | Promise<void>;
+    onEdit: (key: KeyDto) => void;
     onDelete: (key: KeyDto) => void;
   }
 
-  let { key, onCopy, onDelete }: Props = $props();
+  let { key, onCopy, onEdit, onDelete }: Props = $props();
   let copying = $state(false);
 
   async function handleClick() {
@@ -38,7 +39,15 @@
       {copying ? "…" : "Copy"}
     </button>
     <button
-      class="delete"
+      class="icon-btn edit"
+      onclick={() => onEdit(key)}
+      aria-label="Edit {key.name}"
+      title="Edit"
+    >
+      ✎
+    </button>
+    <button
+      class="icon-btn delete"
       onclick={() => onDelete(key)}
       aria-label="Delete {key.name}"
       title="Delete"
@@ -103,12 +112,19 @@
     background: #c7c7cc;
     cursor: default;
   }
-  .delete {
+  .icon-btn {
     background: transparent;
     color: #6e6e73;
     padding: 4px 8px;
-    font-size: 16px;
+    font-size: 14px;
     line-height: 1;
+  }
+  .edit:hover {
+    background: rgba(0, 122, 255, 0.12);
+    color: #007aff;
+  }
+  .delete {
+    font-size: 16px;
   }
   .delete:hover {
     background: rgba(255, 59, 48, 0.12);
