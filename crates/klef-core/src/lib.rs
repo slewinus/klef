@@ -4,9 +4,12 @@
 //! prompts, clap, stdout formatting, or any other UI concern.
 
 pub mod backup;
+pub mod dto;
 pub mod envfile;
 pub mod error;
 pub mod store;
+
+pub use dto::{BackendConfig, KeyDto, TagSummaryDto};
 
 use error::KlefError;
 use std::path::PathBuf;
@@ -26,37 +29,49 @@ use store::{AgeBackend, Backend, IndexFile, KeychainBackend, MetaStore, Store};
 /// Returns `BackendUnavailable` if the spec is malformed or the index path
 /// cannot be resolved.
 pub fn build_store(backend_spec: Option<&str>) -> Result<Store, KlefError> {
+    let config = match backend_spec {
+        Some(spec) => Some(dto::BackendConfig::from_spec(spec)?),
+        None => None,
+    };
+    build_store_from_config(config.as_ref())
+}
+
+/// Build a `Store` from a parsed [`BackendConfig`] (the DTO form).
+///
+/// Used by the GUI which persists its backend choice as JSON; the CLI goes
+/// through [`build_store`] which parses the `--backend` spec string first.
+///
+/// `None` means "use the default" (Keychain in production, or
+/// `KLEF_TEST_BACKEND` in debug builds).
+///
+/// # Errors
+///
+/// Returns `BackendUnavailable` if the index path cannot be resolved.
+pub fn build_store_from_config(config: Option<&dto::BackendConfig>) -> Result<Store, KlefError> {
     let backend: Box<dyn Backend>;
     let meta: Box<dyn MetaStore>;
 
-    if let Some(spec) = backend_spec {
-        if let Some(path) = spec.strip_prefix("age:") {
-            if path.is_empty() {
-                return Err(KlefError::BackendUnavailable(
-                    "--backend age: requires a path (e.g. age:/path/to/secrets.age)".to_string(),
-                ));
-            }
+    match config {
+        Some(dto::BackendConfig::AgeFile { path, .. }) => {
             // Both backend and meta share the same Arc<AgeBackendInner>, so the
             // passphrase is cached across both trait calls and only one vault
             // file is ever read/written. The global index file is never touched.
-            let age = AgeBackend::new(PathBuf::from(path));
+            let age = AgeBackend::new(path.clone());
             backend = Box::new(age.clone());
             meta = Box::new(age);
-        } else if spec.starts_with("file:") {
-            return Err(KlefError::BackendUnavailable(
-                "file: backend is debug-only; use age: for production".to_string(),
-            ));
-        } else {
-            return Err(KlefError::BackendUnavailable(format!(
-                "unknown backend spec '{spec}' (supported: age:/path/to/file.age)"
-            )));
         }
-    } else if let Some(b) = backend_from_env() {
-        backend = b;
-        meta = Box::new(IndexFile::new(index_path()?));
-    } else {
-        backend = Box::new(KeychainBackend::new());
-        meta = Box::new(IndexFile::new(index_path()?));
+        Some(dto::BackendConfig::Keychain) => {
+            backend = Box::new(KeychainBackend::new());
+            meta = Box::new(IndexFile::new(index_path()?));
+        }
+        None => {
+            if let Some(b) = backend_from_env() {
+                backend = b;
+            } else {
+                backend = Box::new(KeychainBackend::new());
+            }
+            meta = Box::new(IndexFile::new(index_path()?));
+        }
     }
 
     Ok(Store::new(backend, meta))
