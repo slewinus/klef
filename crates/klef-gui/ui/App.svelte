@@ -82,11 +82,28 @@
     keys = await listKeys();
   }
 
+  // Modals own their Escape handling. Skip key handling here whenever any
+  // modal is open so we don't fight them.
+  let anyModalOpen = $derived(
+    showAddModal || pendingDelete !== null || editTarget !== null,
+  );
+
+  async function hidePopover() {
+    const m = await import("@tauri-apps/api/webviewWindow");
+    await m.getCurrentWebviewWindow().hide();
+  }
+
   function handleKeydown(e: KeyboardEvent) {
-    // Esc clears the query (or hides the popover when query is empty —
-    // the OS handles popover dismiss via blur, so we just clear).
+    if (anyModalOpen) return;
+    // Esc: clear the query if there's one, otherwise hide the popover.
+    // (Auto-hide-on-blur is disabled in main.rs because it conflicts with
+    // modal mounting; users dismiss explicitly via Esc here.)
     if (e.key === "Escape") {
-      query = "";
+      if (query) {
+        query = "";
+      } else {
+        hidePopover();
+      }
     }
     // Enter on a single visible result triggers copy.
     if (e.key === "Enter" && visibleKeys.length === 1) {

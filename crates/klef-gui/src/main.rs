@@ -4,7 +4,7 @@
 
 use klef_core::{KeyDto, build_store};
 use tauri::{
-    Emitter as _, Manager as _, WindowEvent,
+    Emitter as _, Manager as _,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use tauri_plugin_positioner::{Position, WindowExt as _};
@@ -209,13 +209,21 @@ fn main() {
 
             Ok(())
         })
-        .on_window_event(|window, event| {
-            // Auto-hide the popover when it loses focus — the standard
-            // macOS menu bar utility behavior. Users dismiss by clicking
-            // away.
-            if matches!(event, WindowEvent::Focused(false)) {
-                let _ = window.hide();
-            }
+        .on_window_event(|_window, _event| {
+            // Auto-hide-on-blur is intentionally disabled for v0.1.
+            //
+            // Original intent: clicking outside the popover dismisses it
+            // (standard macOS menu bar utility behavior). But opening a
+            // modal (Add/Edit/Delete) shifts focus inside the webview,
+            // which macOS occasionally reports as a window-level
+            // Focused(false). The popover hides mid-modal-mount, leaving
+            // a frozen-half-rendered black rectangle (the backdrop) in
+            // a state where neither the modal nor the popover responds.
+            //
+            // Trade-off: dismissal is via Escape, re-click on the tray
+            // icon, or ⌘⇧K. A future sprint can restore auto-hide by
+            // suppressing it while a modal is open (e.g. JS emits a
+            // `modal-open`/`modal-closed` event that flips a Rust flag).
         })
         .invoke_handler(tauri::generate_handler![
             list_keys,
