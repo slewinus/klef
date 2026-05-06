@@ -16,6 +16,22 @@ export const DEFAULT_SETTINGS: Settings = {
   autoClearSeconds: 30,
 };
 
+// Autostart state lives in macOS LaunchAgents, not in localStorage. The
+// plugin tracks it via ~/Library/LaunchAgents/<bundle>.plist.
+export async function isAutostartEnabled(): Promise<boolean> {
+  const m = await import("@tauri-apps/plugin-autostart");
+  return m.isEnabled();
+}
+
+export async function setAutostart(enabled: boolean): Promise<void> {
+  const m = await import("@tauri-apps/plugin-autostart");
+  if (enabled) {
+    await m.enable();
+  } else {
+    await m.disable();
+  }
+}
+
 const MIN_AUTO_CLEAR = 0;
 const MAX_AUTO_CLEAR = 600;
 

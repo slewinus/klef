@@ -1,0 +1,104 @@
+<h2>Quelle direction visuelle pour klef ?</h2>
+<p class="subtitle">4 vibes possibles. Clique celle qui te parle (tu peux aussi en commenter plusieurs).</p>
+
+<div class="cards" data-multiselect>
+
+  <div class="card" data-choice="hig" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;background:#f5f5f7">
+      <div style="background:#fff;margin:14px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.08);overflow:hidden;font-family:-apple-system,'SF Pro Text',sans-serif">
+        <div style="padding:8px 12px;border-bottom:1px solid #e5e5ea;display:flex;gap:6px;align-items:center">
+          <div style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></div>
+          <div style="width:11px;height:11px;border-radius:50%;background:#febc2e"></div>
+          <div style="width:11px;height:11px;border-radius:50%;background:#28c840"></div>
+          <div style="margin-left:10px;font-size:11px;color:#6e6e73;font-weight:500">klef</div>
+        </div>
+        <div style="padding:10px 12px;border-bottom:1px solid #e5e5ea">
+          <div style="background:#f5f5f7;border-radius:6px;padding:5px 8px;font-size:11px;color:#86868b">⌕  Search keys</div>
+        </div>
+        <div style="padding:6px">
+          <div style="padding:7px 8px;border-radius:6px;background:#007aff;color:white;font-size:11px;display:flex;justify-content:space-between"><span>OPENAI_API_KEY</span><span style="opacity:.7">⌘C</span></div>
+          <div style="padding:7px 8px;font-size:11px;color:#1d1d1f;display:flex;justify-content:space-between"><span>STRIPE_SECRET</span><span style="color:#86868b">2d ago</span></div>
+          <div style="padding:7px 8px;font-size:11px;color:#1d1d1f;display:flex;justify-content:space-between"><span>GITHUB_TOKEN</span><span style="color:#86868b">1w ago</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Apple HIG sobre</h3>
+      <p>1Password 8, Things 3. SF Pro, accents bleu système, beaucoup de blanc, coins doux 8px. Sur Linux/Windows on remplace par les tokens natifs (Inter/Segoe + accent OS).</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="raycast" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;background:#1a1a1a">
+      <div style="background:#0f0f0f;margin:14px;border-radius:10px;border:1px solid #2a2a2a;overflow:hidden;font-family:'Inter',-apple-system,sans-serif;color:#e5e5e5">
+        <div style="padding:10px 12px;border-bottom:1px solid #2a2a2a;display:flex;gap:8px;align-items:center">
+          <div style="font-size:13px;color:#888">▸</div>
+          <div style="font-size:12px;color:#fff;font-weight:500">klef · search</div>
+          <div style="margin-left:auto;font-size:10px;color:#666;font-family:monospace">⌘K</div>
+        </div>
+        <div style="padding:6px">
+          <div style="padding:8px 10px;border-radius:6px;background:#2563eb22;border:1px solid #2563eb55;font-size:11px;display:flex;justify-content:space-between"><span style="color:#fff;font-weight:500">OPENAI_API_KEY</span><span style="color:#666;font-family:monospace">↵ copy</span></div>
+          <div style="padding:8px 10px;font-size:11px;display:flex;justify-content:space-between"><span style="color:#bbb">STRIPE_SECRET</span><span style="color:#555;font-size:10px">stripe-prod</span></div>
+          <div style="padding:8px 10px;font-size:11px;display:flex;justify-content:space-between"><span style="color:#bbb">GITHUB_TOKEN</span><span style="color:#555;font-size:10px">personal</span></div>
+        </div>
+        <div style="padding:6px 10px;border-top:1px solid #2a2a2a;font-size:10px;color:#666;font-family:monospace;display:flex;gap:14px"><span>↵ copy</span><span>⌘E edit</span><span>⌘⌫ delete</span></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Raycast / dev-tool dense</h3>
+      <p>Sombre par défaut, dense, monospace pour les noms de clés, footer d'actions clavier toujours visible. Très "outil de dev". Marche aussi clair.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="linear" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;background:#fafafa">
+      <div style="background:#fff;margin:14px;border-radius:8px;border:1px solid #ececef;overflow:hidden;font-family:'Inter',-apple-system,sans-serif">
+        <div style="padding:9px 12px;border-bottom:1px solid #ececef;display:flex;align-items:center;gap:8px">
+          <div style="width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#6366f1,#8b5cf6)"></div>
+          <div style="font-size:12px;color:#1a1a1f;font-weight:600">klef</div>
+          <div style="margin-left:auto;display:flex;gap:6px">
+            <div style="font-size:10px;color:#71717a;background:#f4f4f5;padding:2px 6px;border-radius:4px">all</div>
+            <div style="font-size:10px;color:#fff;background:#1a1a1f;padding:2px 6px;border-radius:4px">prod</div>
+          </div>
+        </div>
+        <div style="padding:6px 8px">
+          <div style="padding:7px 8px;border-radius:5px;background:#f7f7f9;font-size:11px;display:flex;align-items:center;gap:8px"><div style="width:6px;height:6px;border-radius:50%;background:#10b981"></div><span style="color:#1a1a1f;font-weight:500">OPENAI_API_KEY</span><span style="margin-left:auto;color:#71717a;font-size:10px">just now</span></div>
+          <div style="padding:7px 8px;font-size:11px;display:flex;align-items:center;gap:8px"><div style="width:6px;height:6px;border-radius:50%;background:#f59e0b"></div><span style="color:#1a1a1f">STRIPE_SECRET</span><span style="margin-left:auto;color:#71717a;font-size:10px">2d</span></div>
+          <div style="padding:7px 8px;font-size:11px;display:flex;align-items:center;gap:8px"><div style="width:6px;height:6px;border-radius:50%;background:#71717a"></div><span style="color:#1a1a1f">GITHUB_TOKEN</span><span style="margin-left:auto;color:#71717a;font-size:10px">1w</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Linear / produit moderne</h3>
+      <p>Inter partout, gris très neutres, accents subtils, petits "status dots" colorés. Identité forte (logo gradient), pas spécialement OS-spécifique mais propre sur tout. Bien si klef veut une marque.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="adwaita" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;background:#f6f5f4">
+      <div style="background:#fff;margin:14px;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,0.06);overflow:hidden;font-family:'Cantarell','Inter',sans-serif">
+        <div style="padding:8px 12px;background:#ebebeb;border-bottom:1px solid #d6d6d6;display:flex;align-items:center;gap:6px">
+          <div style="width:13px;height:13px;border-radius:50%;background:#c1c1c1"></div>
+          <div style="width:13px;height:13px;border-radius:50%;background:#c1c1c1"></div>
+          <div style="font-size:11px;color:#3d3d3d;font-weight:600;margin-left:6px">klef</div>
+          <div style="margin-left:auto;width:20px;height:20px;border-radius:50%;background:#3584e4;color:white;font-size:13px;display:flex;align-items:center;justify-content:center">+</div>
+        </div>
+        <div style="padding:10px 12px;border-bottom:1px solid #ececec">
+          <div style="background:#f6f5f4;border:1px solid #d6d6d6;border-radius:18px;padding:5px 12px;font-size:11px;color:#5e5c64">🔍  Type to search</div>
+        </div>
+        <div style="padding:8px">
+          <div style="padding:9px 10px;border-radius:8px;background:#3584e418;font-size:11px;display:flex;justify-content:space-between;align-items:center"><span style="color:#1d1d1d;font-weight:500">OPENAI_API_KEY</span><span style="color:#3584e4;font-size:14px">📋</span></div>
+          <div style="padding:9px 10px;font-size:11px;display:flex;justify-content:space-between"><span style="color:#3d3d3d">STRIPE_SECRET</span><span style="color:#9a9996">2 days ago</span></div>
+          <div style="padding:9px 10px;font-size:11px;display:flex;justify-content:space-between"><span style="color:#3d3d3d">GITHUB_TOKEN</span><span style="color:#9a9996">last week</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>D — Adwaita / GNOME-friendly</h3>
+      <p>Look libadwaita (apps GNOME modernes) : Cantarell, headerbar grise, pilules arrondies, bleu #3584e4. Très naturel sur Linux. Le pendant exact de "HIG sobre" mais côté Linux.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:24px">💡 Rappel : option A choisie — un codebase Tauri qui charge un thème différent par OS. Donc si tu veux <strong>HIG sur mac + Adwaita sur Linux + Fluent sur Windows</strong>, c'est jouable et c'est probablement le bon choix. Mais ça suppose une "famille" cohérente (sobre, structuré). Si tu choisis "Linear/dev-tool", on garde la même esthétique partout (identité forte, moins natif).</p>

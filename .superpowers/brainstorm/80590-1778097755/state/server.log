@@ -1,0 +1,3 @@
+{"type":"server-started","port":64422,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:64422","screen_dir":"/Users/oscarr/Desktop/klef/.superpowers/brainstorm/80590-1778097755/content","state_dir":"/Users/oscarr/Desktop/klef/.superpowers/brainstorm/80590-1778097755/state"}
+{"type":"screen-added","file":"/Users/oscarr/Desktop/klef/.superpowers/brainstorm/80590-1778097755/content/visual-style.html"}
+{"type":"server-stopped","reason":"owner process exited"}

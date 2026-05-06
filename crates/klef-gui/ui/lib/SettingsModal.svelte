@@ -1,6 +1,12 @@
 <script lang="ts">
-  import { untrack } from "svelte";
-  import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings";
+  import { onMount, untrack } from "svelte";
+  import {
+    DEFAULT_SETTINGS,
+    isAutostartEnabled,
+    loadSettings,
+    saveSettings,
+    setAutostart,
+  } from "./settings";
 
   interface Props {
     onClose: () => void;
@@ -11,10 +17,27 @@
   // Snapshot at mount; the form binds to local state until save.
   let initial = untrack(() => loadSettings());
   let autoClearSeconds = $state(initial.autoClearSeconds);
+  let autostart = $state(false);
+  let autostartLoading = $state(true);
 
-  function submit(e: Event) {
+  onMount(async () => {
+    try {
+      autostart = await isAutostartEnabled();
+    } catch {
+      autostart = false;
+    } finally {
+      autostartLoading = false;
+    }
+  });
+
+  async function submit(e: Event) {
     e.preventDefault();
     saveSettings({ autoClearSeconds });
+    try {
+      await setAutostart(autostart);
+    } catch (err) {
+      console.warn("autostart toggle failed", err);
+    }
     onClose();
   }
 
@@ -57,6 +80,15 @@
     </small>
   </label>
 
+  <label class="checkbox">
+    <input
+      type="checkbox"
+      bind:checked={autostart}
+      disabled={autostartLoading}
+    />
+    <span>Open at login</span>
+  </label>
+
   <div class="actions">
     <button type="button" class="cancel" onclick={reset}>Reset to default</button>
     <div class="spacer"></div>
@@ -89,6 +121,8 @@
   }
   h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
   label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #6e6e73; }
+  label.checkbox { flex-direction: row; align-items: center; gap: 6px; font-size: 12px; color: inherit; }
+  label.checkbox input { width: auto; padding: 0; }
   small { color: #98989d; font-size: 10px; margin-top: 2px; }
   input {
     padding: 5px 8px;
