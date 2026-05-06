@@ -5,6 +5,6 @@ set -e
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${TMPDIR:-/tmp}/klef-target}"
 
 echo "▸ cargo test"
-cargo test --all-features
+cargo test --workspace --all-features
 
 echo "✓ pre-push OK"

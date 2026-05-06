@@ -143,10 +143,10 @@ klef completions fish > ~/.config/fish/completions/klef.fish
 # Setup hooks (à faire une fois après le clone)
 ./scripts/setup-dev.sh
 
-# Build / test
-cargo build
-cargo test --all-features      # 86 tests : unit + E2E
-cargo run -- --help
+# Build / test (cargo workspace : klef-core + klef-cli)
+cargo build --workspace
+cargo test --workspace --all-features
+cargo run -p klef -- --help
 ```
 
 Les hooks git (`fmt`, `clippy`, `tests`, line-cap < 300 lignes/fichier) sont versionnés dans `.githooks/`. CI sur macOS + Ubuntu via GitHub Actions (`.github/workflows/ci.yml`).
