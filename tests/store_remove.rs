@@ -5,7 +5,7 @@
 //! file cap. Uses only the public klef API.
 
 use klef::error::KlefError;
-use klef::store::{Backend, MemoryBackend, Store};
+use klef::store::{Backend, IndexFile, MemoryBackend, MetaStore, Store};
 use std::sync::Mutex;
 use tempfile::tempdir;
 
@@ -58,7 +58,7 @@ fn make_store() -> (Store, tempfile::TempDir) {
     let dir = tempdir().unwrap();
     let s = Store::new(
         Box::new(MemoryBackend::new()),
-        dir.path().join("index.json"),
+        Box::new(IndexFile::new(dir.path().join("index.json"))) as Box<dyn MetaStore>,
     );
     (s, dir)
 }
@@ -105,6 +105,10 @@ impl FailingRemoveBackend {
 }
 
 impl Backend for FailingRemoveBackend {
+    fn describe(&self) -> String {
+        "failing-remove".to_string()
+    }
+
     fn get(&self, name: &str) -> Result<String, KlefError> {
         self.inner.get(name)
     }
@@ -125,7 +129,10 @@ fn remove_propagates_non_not_found_backend_error() {
     let dir = tempdir().unwrap();
     let backend = FailingRemoveBackend::new(|| KlefError::BackendDenied);
     backend.inner.set("k", "v").unwrap();
-    let s = Store::new(Box::new(backend), dir.path().join("index.json"));
+    let s = Store::new(
+        Box::new(backend),
+        Box::new(IndexFile::new(dir.path().join("index.json"))) as Box<dyn MetaStore>,
+    );
     s.add("k", "v", None, None, vec![], true).unwrap();
 
     let r = s.remove("k");
@@ -141,7 +148,10 @@ fn remove_tolerates_backend_key_not_found() {
     // still succeed and clean up the index.
     let dir = tempdir().unwrap();
     let backend = FailingRemoveBackend::new(|| KlefError::KeyNotFound("k".into()));
-    let s = Store::new(Box::new(backend), dir.path().join("index.json"));
+    let s = Store::new(
+        Box::new(backend),
+        Box::new(IndexFile::new(dir.path().join("index.json"))) as Box<dyn MetaStore>,
+    );
     // Add directly to index without touching backend by using add() which
     // sets both — then we rely on the failing remove returning KeyNotFound.
     // Since FailingRemoveBackend wraps MemoryBackend, add() works normally.
