@@ -15,21 +15,17 @@ body {
 }
 
 /* Modals use position: absolute relative to body — `position: fixed` is
-   unreliable on Tauri's macOS webview. The flex column makes <header>
-   stick at the top while <main> grows and scrolls its overflow when the
-   key list exceeds the popover height. */
+   unreliable on Tauri's macOS webview.
+   CSS Grid (auto / 1fr rows) gives main a hard size constraint that
+   actually triggers overflow-y:auto, where flex was unreliable on
+   this webview combo. */
 body {
   position: relative;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr;
 }
 main {
-  /* `min-height: 0` is critical: flex items default to min-height:auto
-     (= content height), which would prevent overflow-y:auto from kicking
-     in. Setting it to 0 lets the container constrain main to remaining
-     space and the scroll bar appears when rows overflow. */
-  flex: 1;
   min-height: 0;
   overflow-y: auto;
 }
