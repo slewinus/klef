@@ -140,7 +140,7 @@
 
 <style>
   .backdrop {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.3);
     z-index: 10;
@@ -148,7 +148,7 @@
     cursor: pointer;
   }
   .modal {
-    position: fixed;
+    position: absolute;
     inset: 12px;
     background: #fff;
     border-radius: 8px;
