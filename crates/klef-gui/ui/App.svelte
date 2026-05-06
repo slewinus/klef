@@ -5,8 +5,9 @@
     deleteKey,
     getKeyValue,
     listKeys,
+    recordAccess,
   } from "./lib/api";
-  import { filterByProject, filterKeys } from "./lib/filter";
+  import { filterByProject, filterKeys, sortByLastUsed } from "./lib/filter";
   import {
     hideCurrentPopover,
     setupPopoverLifecycle,
@@ -34,11 +35,10 @@
   let editTarget = $state<KeyDto | null>(null);
   let pendingDelete = $state<KeyDto | null>(null);
 
-  // Filter pipeline: project first (narrows the candidate set), then search
-  // query. Order doesn't change correctness but project-first is cheaper
-  // when a project is selected.
+  // Pipeline: sort by recency, then project filter, then search query.
+  // Sort runs first so the recency order is preserved through filtering.
   let visibleKeys = $derived(
-    filterKeys(filterByProject(keys, selectedProject), query),
+    filterKeys(filterByProject(sortByLastUsed(keys), selectedProject), query),
   );
 
   function showToast(msg: string) {
@@ -52,6 +52,12 @@
       const value = await getKeyValue(key.name);
       await copyToClipboard(value);
       showToast(`${key.name} copied — clipboard clears in 30s`);
+      // Optimistic update so the row jumps to top immediately.
+      const now = new Date().toISOString();
+      keys = keys.map((k) =>
+        k.name === key.name ? { ...k, last_used_at: now } : k,
+      );
+      recordAccess(key.name).catch((e) => console.warn("record_access", e));
     } catch (e) {
       showToast(`error: ${e}`);
     }
@@ -255,34 +261,14 @@
     background: #0051d5;
   }
   @media (prefers-color-scheme: dark) {
-    .add-btn {
-      background: #0a84ff;
-    }
-    .add-btn:hover {
-      background: #0066cc;
-    }
+    .add-btn { background: #0a84ff; }
+    .add-btn:hover { background: #0066cc; }
   }
-  main {
-    padding: 8px;
-  }
-  .empty {
-    padding: 24px;
-    color: #6e6e73;
-    text-align: center;
-  }
-  .err {
-    color: #ff3b30;
-    padding: 16px;
-    font-size: 12px;
-  }
-  code {
-    background: #e5e5ea;
-    padding: 1px 4px;
-    border-radius: 3px;
-  }
-  strong {
-    color: #1d1d1f;
-  }
+  main { padding: 8px; }
+  .empty { padding: 24px; color: #6e6e73; text-align: center; }
+  .err { color: #ff3b30; padding: 16px; font-size: 12px; }
+  code { background: #e5e5ea; padding: 1px 4px; border-radius: 3px; }
+  strong { color: #1d1d1f; }
   @media (prefers-color-scheme: dark) {
     header {
       background: #2c2c2e;

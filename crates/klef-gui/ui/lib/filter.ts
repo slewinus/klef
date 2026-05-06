@@ -33,3 +33,19 @@ export function filterByProject(
   const tag = `project:${project}`;
   return keys.filter((k) => k.tags?.includes(tag));
 }
+
+/**
+ * Sort keys by `last_used_at` descending (most recently used first).
+ * Keys without a timestamp fall to the bottom in alphabetical order.
+ * Returns a new array; does not mutate the input.
+ */
+export function sortByLastUsed(keys: KeyDto[]): KeyDto[] {
+  return [...keys].sort((a, b) => {
+    const ta = a.last_used_at;
+    const tb = b.last_used_at;
+    if (ta && tb) return tb.localeCompare(ta);
+    if (ta) return -1;
+    if (tb) return 1;
+    return a.name.localeCompare(b.name);
+  });
+}

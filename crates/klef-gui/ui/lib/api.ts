@@ -37,6 +37,15 @@ export function deleteKey(name: string): Promise<void> {
   return invoke<void>("delete_key", { name });
 }
 
+/**
+ * Record that the user just accessed (copied) this key. Errors are
+ * intentionally non-fatal at the call site — the user already has the
+ * value, so a metadata write failure should not surface as a copy error.
+ */
+export function recordAccess(name: string): Promise<void> {
+  return invoke<void>("record_access", { name });
+}
+
 export interface EditKeyInput {
   name: string;
   /** undefined = preserve the existing secret value. */

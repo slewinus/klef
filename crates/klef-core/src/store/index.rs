@@ -14,6 +14,17 @@ pub struct KeyMeta {
     pub added_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
+    /// Last time the secret value was accessed by an explicit user action
+    /// (e.g. copy from the GUI). The CLI does NOT update this — `klef get`
+    /// stays a pure read so a clipboard copy from a script can't pollute
+    /// the field. Optional + skip-if-none keeps backward compat with
+    /// pre-v0.4 index files.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "time::serde::rfc3339::option"
+    )]
+    pub last_used_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -95,6 +106,7 @@ mod tests {
             tags: vec![],
             added_at: datetime!(2026-05-05 19:57:00 UTC),
             updated_at: datetime!(2026-05-05 19:57:00 UTC),
+            last_used_at: None,
         }
     }
 

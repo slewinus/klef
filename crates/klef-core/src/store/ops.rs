@@ -25,11 +25,8 @@ impl Store {
         self.backend.describe()
     }
 
-    /// Acquire the inter-process lock that protects the meta store.
-    ///
-    /// All mutating ops hold this for the duration of their load → mutate
-    /// → save sequence so two concurrent klef processes can't lose each
-    /// other's writes (closes #61).
+    /// Inter-process lock for the meta store. Held by all mutating ops
+    /// across their load → mutate → save sequence (closes #61).
     fn lock(&self) -> Result<FileLock, KlefError> {
         FileLock::acquire(&self.meta.lock_path())
     }
@@ -56,16 +53,17 @@ impl Store {
         let mut sorted_tags = tags;
         sorted_tags.sort();
         sorted_tags.dedup();
+        // Preserve last_used_at across re-adds (metadata edits shouldn't reset it).
         let meta = KeyMeta {
             env_var: env_var.unwrap_or_else(|| super::default_env_var(name)),
             note,
             tags: sorted_tags,
             added_at: data.keys.get(name).map_or(now, |k| k.added_at),
             updated_at: now,
+            last_used_at: data.keys.get(name).and_then(|k| k.last_used_at),
         };
-        // Atomicity (#48): snapshot prior value, write new, save index;
-        // on index-save failure restore prior (or remove new) so we never
-        // leak a phantom secret. Best-effort — see tests/store_atomicity.rs.
+        // Atomicity (#48): snapshot prior, write new, save index; on index
+        // failure restore prior — see tests/store_atomicity.rs.
         let prior = self.backend.get(name).ok();
         self.backend.set(name, value)?;
         data.keys.insert(name.to_string(), meta);
@@ -81,7 +79,6 @@ impl Store {
     }
 
     /// Replace the tag set on an existing key.
-    ///
     /// # Errors
     /// `KeyNotFound` if name doesn't exist; index errors propagated.
     pub fn set_tags(&self, name: &str, tags: Vec<String>) -> Result<(), KlefError> {
@@ -101,7 +98,6 @@ impl Store {
     }
 
     /// Return a map of tag → number of keys carrying it.
-    ///
     /// # Errors
     /// Index load error.
     pub fn tags_with_counts(&self) -> Result<std::collections::BTreeMap<String, usize>, KlefError> {
@@ -151,6 +147,22 @@ impl Store {
             Err(e) => return Err(e),
         }
         data.keys.remove(name);
+        self.meta.save_index(&data)?;
+        Ok(())
+    }
+
+    /// Record that the user just copied this key. Updates `last_used_at`.
+    /// Intentionally NOT called by `get_value` — only the GUI invokes this.
+    /// # Errors
+    /// `KeyNotFound` if the key does not exist, or an index error.
+    pub fn record_access(&self, name: &str) -> Result<(), KlefError> {
+        let _lock = self.lock()?;
+        let mut data = self.meta.load_index()?;
+        let meta = data
+            .keys
+            .get_mut(name)
+            .ok_or_else(|| KlefError::KeyNotFound(name.to_string()))?;
+        meta.last_used_at = Some(OffsetDateTime::now_utc());
         self.meta.save_index(&data)?;
         Ok(())
     }
@@ -208,9 +220,8 @@ impl Store {
         if data.keys.contains_key(new) {
             return Err(KlefError::KeyAlreadyExists(new.to_string()));
         }
-        // Atomicity (#48): read old → set new → save index → remove old.
-        // If save fails we undo the new key. Old-key removal is best-effort
-        // (a leaked old key shows up as a reverse orphan in status).
+        // Atomicity (#48): set new → save index → remove old. Save failure
+        // undoes new; old removal is best-effort (leaked old shows as orphan).
         let value = self.backend.get(old)?;
         self.backend.set(new, &value)?;
         let mut meta = data.keys.remove(old).expect("checked above");
@@ -247,6 +258,7 @@ impl Store {
                     tags: entry.tags.clone(),
                     added_at: entry.added_at,
                     updated_at: entry.updated_at,
+                    last_used_at: None,
                 },
             );
         }
@@ -268,10 +280,7 @@ impl Store {
     }
 
     /// Return key names in the backend that are missing from the index.
-    ///
-    /// `Ok(None)` means the backend cannot enumerate (keychain) — the check is
-    /// not possible, not that the backend is necessarily clean. Closes #49.
-    ///
+    /// `Ok(None)` means the backend cannot enumerate (keychain) — closes #49.
     /// # Errors
     /// Returns an error if enumeration is supported but fails, or the index
     /// can't be loaded.

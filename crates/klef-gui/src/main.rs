@@ -74,6 +74,15 @@ fn delete_key(name: String, state: tauri::State<'_, AppState>) -> Result<(), Str
 
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
+fn record_access(name: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    // Called by the GUI after a successful clipboard copy. The CLI does
+    // NOT call this — `klef get` stays a pure read so a script piping
+    // it can't pollute the field.
+    state.store.record_access(&name).map_err(|e| e.to_string())
+}
+
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
 fn edit_key(
     name: String,
     value: Option<String>,
@@ -230,7 +239,8 @@ fn main() {
             get_key_value,
             add_key,
             delete_key,
-            edit_key
+            edit_key,
+            record_access
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

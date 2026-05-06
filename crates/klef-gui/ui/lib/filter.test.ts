@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterByProject, filterKeys } from "./filter";
+import { filterByProject, filterKeys, sortByLastUsed } from "./filter";
 import type { KeyDto } from "./types";
 
 const k = (overrides: Partial<KeyDto>): KeyDto => ({
@@ -118,5 +118,34 @@ describe("filterKeys + filterByProject composition", () => {
     const projectScoped = filterByProject(fixtures, "dahouse");
     const final = filterKeys(projectScoped, "stripe");
     expect(final).toEqual([]);
+  });
+});
+
+describe("sortByLastUsed", () => {
+  const a = k({ name: "a", last_used_at: "2026-05-06T12:00:00Z" });
+  const b = k({ name: "b", last_used_at: "2026-05-06T18:00:00Z" });
+  const c = k({ name: "c" }); // never used
+  const d = k({ name: "aaa" }); // never used, alphabetically first among unused
+
+  it("sorts most-recently-used first", () => {
+    expect(sortByLastUsed([a, b]).map((k) => k.name)).toEqual(["b", "a"]);
+  });
+
+  it("puts never-used keys at the bottom", () => {
+    expect(sortByLastUsed([a, c, b]).map((k) => k.name)).toEqual(["b", "a", "c"]);
+  });
+
+  it("orders never-used keys alphabetically among themselves", () => {
+    expect(sortByLastUsed([c, d]).map((k) => k.name)).toEqual(["aaa", "c"]);
+  });
+
+  it("does not mutate the input", () => {
+    const input = [a, b];
+    sortByLastUsed(input);
+    expect(input.map((k) => k.name)).toEqual(["a", "b"]);
+  });
+
+  it("returns empty array for empty input", () => {
+    expect(sortByLastUsed([])).toEqual([]);
   });
 });

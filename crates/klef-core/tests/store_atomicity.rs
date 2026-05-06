@@ -96,6 +96,7 @@ fn add_force_restores_prior_value_when_index_save_fails() {
                 tags: vec![],
                 added_at: time::OffsetDateTime::now_utc(),
                 updated_at: time::OffsetDateTime::now_utc(),
+                last_used_at: None,
             },
         );
         d

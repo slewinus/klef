@@ -161,3 +161,37 @@ fn remove_tolerates_backend_key_not_found() {
         .expect("KeyNotFound from backend must be tolerated");
     assert!(matches!(s.meta("k"), Err(KlefError::KeyNotFound(_))));
 }
+
+#[test]
+fn record_access_sets_last_used_at() {
+    let (s, _d) = make_store();
+    s.add("stripe", "v", None, None, vec![], false).unwrap();
+    let before = s.meta("stripe").unwrap().last_used_at;
+    assert!(before.is_none(), "newly added key has no last_used_at");
+
+    s.record_access("stripe").unwrap();
+    let after = s.meta("stripe").unwrap().last_used_at;
+    assert!(after.is_some(), "record_access populates last_used_at");
+}
+
+#[test]
+fn record_access_unknown_key_returns_not_found() {
+    let (s, _d) = make_store();
+    let r = s.record_access("nope");
+    assert!(matches!(r, Err(KlefError::KeyNotFound(_))));
+}
+
+#[test]
+fn re_add_preserves_last_used_at() {
+    let (s, _d) = make_store();
+    s.add("stripe", "v1", None, None, vec![], false).unwrap();
+    s.record_access("stripe").unwrap();
+    let recorded = s.meta("stripe").unwrap().last_used_at;
+    assert!(recorded.is_some());
+
+    // Force re-add (simulates editing the value) — last_used_at must
+    // survive so the recency tracking isn't reset by metadata edits.
+    s.add("stripe", "v2", None, Some("note".into()), vec![], true)
+        .unwrap();
+    assert_eq!(s.meta("stripe").unwrap().last_used_at, recorded);
+}
