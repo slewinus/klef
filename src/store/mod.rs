@@ -8,6 +8,7 @@ pub use file::FileBackend;
 pub use index::{IndexData, IndexFile, KeyMeta};
 pub use keychain::KeychainBackend;
 
+use crate::commands::backup::BundleEntry;
 use crate::error::KlefError;
 use std::path::PathBuf;
 use time::OffsetDateTime;
@@ -28,13 +29,9 @@ impl Store {
         }
     }
 
-    /// Add or update a secret by name, optionally with environment variable and note metadata.
-    ///
+    /// Add or update a secret by name, optionally with env-var and note metadata.
     /// # Errors
-    ///
-    /// Returns `InvalidKeyName` if the name contains invalid characters.
-    /// Returns `KeyAlreadyExists` if the key exists and force is false.
-    /// Returns an error if the backend or index fails.
+    /// Returns `InvalidKeyName`, `KeyAlreadyExists`, or a backend/index error.
     pub fn add(
         &self,
         name: &str,
@@ -52,6 +49,7 @@ impl Store {
         let meta = KeyMeta {
             env_var: env_var.unwrap_or_else(|| default_env_var(name)),
             note,
+            tags: vec![],
             added_at: data.keys.get(name).map_or(now, |k| k.added_at),
             updated_at: now,
         };
@@ -62,11 +60,8 @@ impl Store {
     }
 
     /// Retrieve the secret value by name.
-    ///
     /// # Errors
-    ///
-    /// Returns `KeyNotFound` if the key does not exist.
-    /// Returns an error if the index or backend fails.
+    /// Returns `KeyNotFound` if the key does not exist, or a backend error.
     pub fn get_value(&self, name: &str) -> Result<String, KlefError> {
         let data = self.index.load()?;
         if !data.keys.contains_key(name) {
@@ -76,9 +71,7 @@ impl Store {
     }
 
     /// List all stored keys and their metadata.
-    ///
     /// # Errors
-    ///
     /// Returns an error if the index fails to load.
     pub fn list(&self) -> Result<Vec<(String, KeyMeta)>, KlefError> {
         let data = self.index.load()?;
@@ -86,11 +79,8 @@ impl Store {
     }
 
     /// Remove a secret and its metadata.
-    ///
     /// # Errors
-    ///
-    /// Returns `KeyNotFound` if the key does not exist.
-    /// Returns an error if the index fails.
+    /// Returns `KeyNotFound` if the key does not exist, or an index error.
     pub fn remove(&self, name: &str) -> Result<(), KlefError> {
         let mut data = self.index.load()?;
         if !data.keys.contains_key(name) {
@@ -104,11 +94,8 @@ impl Store {
     }
 
     /// Retrieve metadata for a specific key.
-    ///
     /// # Errors
-    ///
-    /// Returns `KeyNotFound` if the key does not exist.
-    /// Returns an error if the index fails to load.
+    /// Returns `KeyNotFound` if the key does not exist, or an index error.
     pub fn meta(&self, name: &str) -> Result<KeyMeta, KlefError> {
         let data = self.index.load()?;
         data.keys
@@ -117,15 +104,10 @@ impl Store {
             .ok_or_else(|| KlefError::KeyNotFound(name.to_string()))
     }
 
-    /// Update the environment variable and/or note for a key.
-    ///
-    /// Pass `None` for fields that should not change.
-    /// For note, `Some(None)` clears the note, `Some(Some(s))` sets it to s.
-    ///
+    /// Update the env-var and/or note for a key.
+    /// `None` fields are unchanged; `Some(None)` clears the note.
     /// # Errors
-    ///
-    /// Returns `KeyNotFound` if the key does not exist.
-    /// Returns an error if the index fails.
+    /// Returns `KeyNotFound` if the key does not exist, or an index error.
     pub fn update_meta(
         &self,
         name: &str,
@@ -149,17 +131,10 @@ impl Store {
     }
 
     /// Rename a secret.
-    ///
     /// # Errors
-    ///
-    /// Returns `KeyNotFound` if the old key does not exist.
-    /// Returns `KeyAlreadyExists` if the new key already exists.
-    /// Returns `InvalidKeyName` if the new name is invalid.
-    /// Returns an error if the backend or index fails.
-    ///
+    /// Returns `KeyNotFound`, `KeyAlreadyExists`, `InvalidKeyName`, or a backend/index error.
     /// # Panics
-    ///
-    /// Panics if the old key exists in the index but cannot be removed (internal inconsistency).
+    /// Panics on internal inconsistency (old key in index but not removable).
     pub fn rename(&self, old: &str, new: &str) -> Result<(), KlefError> {
         validate_name(new)?;
         let mut data = self.index.load()?;
@@ -178,6 +153,33 @@ impl Store {
         self.index.save(&data)?;
         Ok(())
     }
+    /// Restore Phase 1: write entry value to the backend only (no index write).
+    /// # Errors
+    /// Returns an error if the backend write fails.
+    pub fn restore_phase_1(&self, entry: &BundleEntry) -> Result<(), KlefError> {
+        self.backend.set(&entry.name, &entry.value)
+    }
+
+    /// Restore Phase 2: rewrite the index from a list of bundle entries.
+    /// # Errors
+    /// Returns an error if the index save fails.
+    pub fn restore_phase_2(&self, entries: &[BundleEntry]) -> Result<(), KlefError> {
+        let mut data = self.index.load()?;
+        for entry in entries {
+            data.keys.insert(
+                entry.name.clone(),
+                KeyMeta {
+                    env_var: entry.env_var.clone(),
+                    note: entry.note.clone(),
+                    tags: entry.tags.clone(),
+                    added_at: entry.added_at,
+                    updated_at: entry.updated_at,
+                },
+            );
+        }
+        self.index.save(&data)
+    }
+
     /// Return key names in index but missing from backend.
     /// # Errors
     /// Returns an error if the index fails to load.
@@ -193,7 +195,7 @@ impl Store {
     }
 }
 
-/// Generate a default environment variable name from a key name.
+/// Generate a default env-var name from a key name.
 fn default_env_var(name: &str) -> String {
     let upper: String = name
         .chars()
@@ -208,10 +210,8 @@ fn default_env_var(name: &str) -> String {
     format!("{upper}_API_KEY")
 }
 
-/// Validate that a key name contains only alphanumeric, dash, or underscore characters.
-///
+/// Validate that a key name is alphanumeric with dashes or underscores.
 /// # Errors
-///
 /// Returns `InvalidKeyName` if the name is empty or contains invalid characters.
 fn validate_name(name: &str) -> Result<(), KlefError> {
     if name.is_empty()
