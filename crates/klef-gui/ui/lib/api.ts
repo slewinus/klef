@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { copyWithAutoClear } from "./clipboard";
+import { autoClearMs, loadSettings } from "./settings";
 import type { KeyDto } from "./types";
 
 // Thin wrappers over Tauri commands. Keep these typed so the Svelte
@@ -56,9 +57,8 @@ export function editKey(input: EditKeyInput): Promise<void> {
   });
 }
 
-// Copies the value AND schedules an auto-clear after 30 s. See
-// `./clipboard.ts` for the semantics around concurrent copies and
-// best-effort clearing.
+// Copies the value AND schedules an auto-clear based on user settings.
+// `null` timeout disables the auto-clear (when the user sets duration to 0).
 export function copyToClipboard(value: string): Promise<void> {
-  return copyWithAutoClear(value);
+  return copyWithAutoClear(value, autoClearMs(loadSettings()));
 }

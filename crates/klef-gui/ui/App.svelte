@@ -18,6 +18,7 @@
   import KeyRow from "./lib/KeyRow.svelte";
   import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
+  import SettingsModal from "./lib/SettingsModal.svelte";
   import Toast from "./lib/Toast.svelte";
 
   let keys = $state<KeyDto[]>([]);
@@ -31,6 +32,7 @@
   let searchBar: SearchBar | undefined = $state();
 
   let showAddModal = $state(false);
+  let showSettings = $state(false);
   let editTarget = $state<KeyDto | null>(null);
   let pendingDelete = $state<KeyDto | null>(null);
 
@@ -89,7 +91,7 @@
   // Modals own their Escape handling. Skip key handling here whenever any
   // modal is open so we don't fight them.
   let anyModalOpen = $derived(
-    showAddModal || pendingDelete !== null || editTarget !== null,
+    showAddModal || showSettings || pendingDelete !== null || editTarget !== null,
   );
 
   function handleKeydown(e: KeyboardEvent) {
@@ -142,14 +144,24 @@
 <header>
   <div class="title-row">
     <div class="title">klef</div>
-    <button
-      class="add-btn"
-      onclick={() => (showAddModal = true)}
-      aria-label="Add key"
-      title="Add key"
-    >
-      +
-    </button>
+    <div class="header-actions">
+      <button
+        class="hdr-btn"
+        onclick={() => (showSettings = true)}
+        aria-label="Settings"
+        title="Settings"
+      >
+        ⚙
+      </button>
+      <button
+        class="hdr-btn primary"
+        onclick={() => (showAddModal = true)}
+        aria-label="Add key"
+        title="Add key"
+      >
+        +
+      </button>
+    </div>
   </div>
   <SearchBar bind:this={searchBar} bind:value={query} />
   <ProjectChips
@@ -220,6 +232,10 @@
   />
 {/if}
 
+{#if showSettings}
+  <SettingsModal onClose={() => (showSettings = false)} />
+{/if}
+
 <style>
   header {
     padding: 10px 12px 8px;
@@ -238,29 +254,21 @@
     font-weight: 600;
     font-size: 13px;
   }
-  .add-btn {
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    background: #007aff;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-    font-family: inherit;
+  .header-actions { display: flex; gap: 4px; }
+  .hdr-btn {
+    width: 22px; height: 22px; padding: 0;
+    background: transparent; color: #6e6e73;
+    border: 1px solid transparent; border-radius: 4px;
+    cursor: pointer; font-size: 14px; line-height: 1; font-family: inherit;
   }
-  .add-btn:hover {
-    background: #0051d5;
-  }
+  .hdr-btn:hover { background: #f5f5f7; color: #1d1d1f; }
+  .hdr-btn.primary { background: #007aff; color: white; font-size: 16px; border-color: #007aff; }
+  .hdr-btn.primary:hover { background: #0051d5; color: white; }
   @media (prefers-color-scheme: dark) {
-    .add-btn {
-      background: #0a84ff;
-    }
-    .add-btn:hover {
-      background: #0066cc;
-    }
+    .hdr-btn { color: #98989d; }
+    .hdr-btn:hover { background: #3a3a3c; color: #f5f5f7; }
+    .hdr-btn.primary { background: #0a84ff; border-color: #0a84ff; }
+    .hdr-btn.primary:hover { background: #0066cc; }
   }
   main {
     padding: 8px;
@@ -270,29 +278,12 @@
     color: #6e6e73;
     text-align: center;
   }
-  .err {
-    color: #ff3b30;
-    padding: 16px;
-    font-size: 12px;
-  }
-  code {
-    background: #e5e5ea;
-    padding: 1px 4px;
-    border-radius: 3px;
-  }
-  strong {
-    color: #1d1d1f;
-  }
+  .err { color: #ff3b30; padding: 16px; font-size: 12px; }
+  code { background: #e5e5ea; padding: 1px 4px; border-radius: 3px; }
+  strong { color: #1d1d1f; }
   @media (prefers-color-scheme: dark) {
-    header {
-      background: #2c2c2e;
-      border-bottom-color: #3a3a3c;
-    }
-    code {
-      background: #3a3a3c;
-    }
-    strong {
-      color: #f5f5f7;
-    }
+    header { background: #2c2c2e; border-bottom-color: #3a3a3c; }
+    code { background: #3a3a3c; }
+    strong { color: #f5f5f7; }
   }
 </style>
