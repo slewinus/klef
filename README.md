@@ -66,9 +66,14 @@ Server on port 3000, Stripe wired ✓
 cargo install --git https://github.com/slewinus/klef
 ```
 
-### Homebrew (macOS)
+### Homebrew (macOS / Linux desktop)
 
-`brew install slewinus/tap/klef` — _en cours de packaging, voir [#10](https://github.com/slewinus/klef/issues/10)._
+```bash
+brew tap slewinus/tap
+brew install klef
+```
+
+_Disponible dès la release v0.2.0 (tag à venir)._
 
 ### Binaires pré-compilés
 

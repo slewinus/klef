@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to associate (only used when triggered manually for dry runs)'
+        required: false
+        default: 'v0.0.0-dispatch'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            runner: macos-13
+            os: macos
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            os: macos
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            os: linux
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+            os: linux
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="${GITHUB_REF#refs/tags/}"
+          else
+            tag="${{ github.event.inputs.tag }}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: $tag"
+
+      - name: Install Linux build dependencies
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Strip binary
+        run: |
+          BIN_PATH="target/${{ matrix.target }}/release/klef"
+          if [ "${{ matrix.os }}" = "macos" ]; then
+            strip "$BIN_PATH"
+          else
+            strip "$BIN_PATH" || true
+          fi
+
+      - name: Package tarball
+        id: pkg
+        shell: bash
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          TARGET="${{ matrix.target }}"
+          PKG_NAME="klef-${TAG}-${TARGET}"
+          mkdir -p "dist/${PKG_NAME}"
+          cp "target/${TARGET}/release/klef" "dist/${PKG_NAME}/"
+          cp LICENSE README.md CHANGELOG.md "dist/${PKG_NAME}/"
+          tar -C dist -czf "dist/${PKG_NAME}.tar.gz" "${PKG_NAME}"
+          echo "tarball=dist/${PKG_NAME}.tar.gz" >> "$GITHUB_OUTPUT"
+          ( cd dist && shasum -a 256 "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256" )
+          ls -la dist/
+
+      - name: Upload artifact (always)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifact tree
+        run: |
+          mkdir -p release-files
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.sha256' \) -exec mv {} release-files/ \;
+          ls -la release-files/
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-files/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
