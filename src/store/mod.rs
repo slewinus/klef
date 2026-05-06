@@ -29,7 +29,7 @@ impl Store {
         }
     }
 
-    /// Add or update a secret by name, optionally with env-var and note metadata.
+    /// Add or update a secret by name, optionally with env-var, note, and tags metadata.
     /// # Errors
     /// Returns `InvalidKeyName`, `KeyAlreadyExists`, or a backend/index error.
     pub fn add(
@@ -38,6 +38,7 @@ impl Store {
         value: &str,
         env_var: Option<String>,
         note: Option<String>,
+        tags: Vec<String>,
         force: bool,
     ) -> Result<(), KlefError> {
         validate_name(name)?;
@@ -46,10 +47,13 @@ impl Store {
             return Err(KlefError::KeyAlreadyExists(name.to_string()));
         }
         let now = OffsetDateTime::now_utc();
+        let mut sorted_tags = tags;
+        sorted_tags.sort();
+        sorted_tags.dedup();
         let meta = KeyMeta {
             env_var: env_var.unwrap_or_else(|| default_env_var(name)),
             note,
-            tags: vec![],
+            tags: sorted_tags,
             added_at: data.keys.get(name).map_or(now, |k| k.added_at),
             updated_at: now,
         };
@@ -57,6 +61,40 @@ impl Store {
         data.keys.insert(name.to_string(), meta);
         self.index.save(&data)?;
         Ok(())
+    }
+
+    /// Replace the tag set on an existing key.
+    ///
+    /// # Errors
+    /// `KeyNotFound` if name doesn't exist; index errors propagated.
+    pub fn set_tags(&self, name: &str, tags: Vec<String>) -> Result<(), KlefError> {
+        let mut data = self.index.load()?;
+        let meta = data
+            .keys
+            .get_mut(name)
+            .ok_or_else(|| KlefError::KeyNotFound(name.to_string()))?;
+        let mut sorted = tags;
+        sorted.sort();
+        sorted.dedup();
+        meta.tags = sorted;
+        meta.updated_at = OffsetDateTime::now_utc();
+        self.index.save(&data)?;
+        Ok(())
+    }
+
+    /// Return a map of tag → number of keys carrying it.
+    ///
+    /// # Errors
+    /// Index load error.
+    pub fn tags_with_counts(&self) -> Result<std::collections::BTreeMap<String, usize>, KlefError> {
+        let data = self.index.load()?;
+        let mut counts = std::collections::BTreeMap::new();
+        for meta in data.keys.values() {
+            for t in &meta.tags {
+                *counts.entry(t.clone()).or_insert(0) += 1;
+            }
+        }
+        Ok(counts)
     }
 
     /// Retrieve the secret value by name.
@@ -232,52 +270,12 @@ fn validate_name(name: &str) -> Result<(), KlefError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
-
-    fn make_store() -> (Store, tempfile::TempDir) {
-        let dir = tempdir().unwrap();
-        let s = Store::new(
-            Box::new(MemoryBackend::new()),
-            dir.path().join("index.json"),
-        );
-        (s, dir)
-    }
-
-    #[test]
-    fn add_then_get_round_trip() {
-        let (s, _d) = make_store();
-        s.add("stripe", "sk_live", None, None, false).unwrap();
-        assert_eq!(s.get_value("stripe").unwrap(), "sk_live");
-    }
-
-    #[test]
-    fn add_existing_without_force_fails() {
-        let (s, _d) = make_store();
-        s.add("stripe", "v1", None, None, false).unwrap();
-        let r = s.add("stripe", "v2", None, None, false);
-        assert!(matches!(r, Err(KlefError::KeyAlreadyExists(_))));
-    }
-
-    #[test]
-    fn add_existing_with_force_overwrites() {
-        let (s, _d) = make_store();
-        s.add("stripe", "v1", None, None, false).unwrap();
-        s.add("stripe", "v2", None, None, true).unwrap();
-        assert_eq!(s.get_value("stripe").unwrap(), "v2");
-    }
 
     #[test]
     fn default_env_var_uses_api_key_suffix() {
         assert_eq!(default_env_var("stripe"), "STRIPE_API_KEY");
         assert_eq!(default_env_var("stripe-prod"), "STRIPE_PROD_API_KEY");
     }
-
-    #[test]
-    fn invalid_name_rejected() {
-        let (s, _d) = make_store();
-        let r = s.add("has space", "v", None, None, false);
-        assert!(matches!(r, Err(KlefError::InvalidKeyName(_))));
-    }
-    // rename, remove, orphan tests + remove error semantics live in
+    // Other store tests (add, remove, rename, orphan, tags) live in
     // tests/store_remove.rs (file-cap discipline).
 }

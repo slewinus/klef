@@ -14,3 +14,4 @@ pub mod rm;
 pub mod run;
 pub mod set_note;
 pub mod status;
+pub mod tags;

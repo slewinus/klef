@@ -153,7 +153,7 @@ pub fn run(
             value,
         } = line
         {
-            match store.add(klef_name, value, Some(env_var.clone()), None, false) {
+            match store.add(klef_name, value, Some(env_var.clone()), None, vec![], false) {
                 Ok(()) => {
                     println!("✓ {env_var} → klef:{klef_name}");
                     imported.push((env_var.clone(), klef_name.clone()));

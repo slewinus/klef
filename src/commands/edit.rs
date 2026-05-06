@@ -10,12 +10,15 @@ use std::process::Command;
 ///
 /// Returns an error if the key does not exist, reading the value fails,
 /// or the backend/index operations fail.
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     store: &Store,
     name: &str,
     env_var: Option<String>,
     note: Option<String>,
     value_from_file: Option<&Path>,
+    tags: Vec<String>,
+    clear_tags: bool,
     note_edit: bool,
 ) -> Result<(), KlefError> {
     let meta = store.meta(name)?; // confirms key exists
@@ -24,15 +27,33 @@ pub fn run(
         return run_note_edit(store, name, meta.note.as_deref());
     }
 
-    let meta_only = (env_var.is_some() || note.is_some()) && value_from_file.is_none();
+    let want_tags_change = !tags.is_empty() || clear_tags;
+    let want_other_meta = env_var.is_some() || note.is_some();
 
+    // Tags-only path: --tag / --clear-tags without any other meta or value flag.
+    // This takes priority over the value-replacement path even on a TTY.
+    if want_tags_change && !want_other_meta && value_from_file.is_none() {
+        let final_tags = if clear_tags { vec![] } else { tags };
+        store.set_tags(name, final_tags)?;
+        println!("✓ '{name}' tags updated");
+        return Ok(());
+    }
+
+    // Meta-only path (original behavior preserved): explicit --note / --as, no file.
+    // Optionally also update tags in the same pass.
+    let meta_only = want_other_meta && value_from_file.is_none();
     if meta_only {
+        if want_tags_change {
+            let final_tags = if clear_tags { vec![] } else { tags };
+            store.set_tags(name, final_tags)?;
+        }
         let note_update = note.map(Some);
         store.update_meta(name, env_var, note_update)?;
         println!("✓ '{name}' metadata updated");
         return Ok(());
     }
 
+    // Value-replacement path (stdin or --value-from-file).
     let value = if let Some(path) = value_from_file {
         std::fs::read_to_string(path).map_err(KlefError::Io)?
     } else if std::io::stdin().is_terminal() {
@@ -45,9 +66,15 @@ pub fn run(
             .map_err(KlefError::Io)?;
         buf
     };
-    // Preserve the existing note unless explicitly overridden
+    // Preserve the existing note unless explicitly overridden.
     let note_to_use = note.or_else(|| meta.note.clone());
-    store.add(name, value.trim(), env_var, note_to_use, true)?;
+    // Use user's tags if specified; otherwise preserve existing tags.
+    let final_tags = if want_tags_change {
+        if clear_tags { vec![] } else { tags }
+    } else {
+        meta.tags
+    };
+    store.add(name, value.trim(), env_var, note_to_use, final_tags, true)?;
     println!("✓ '{name}' value updated");
     Ok(())
 }

@@ -11,6 +11,7 @@ pub fn run(
     format: ListFormat,
     verbose: bool,
     filter: Option<&str>,
+    tag_filter: Option<&str>,
 ) -> Result<(), KlefError> {
     let mut entries = store.list()?;
 
@@ -23,6 +24,9 @@ pub fn run(
                     .as_deref()
                     .is_some_and(|n| n.to_lowercase().contains(&needle))
         });
+    }
+    if let Some(tag) = tag_filter {
+        entries.retain(|(_, meta)| meta.tags.iter().any(|t| t == tag));
     }
 
     match format {
@@ -52,15 +56,32 @@ fn print_table(entries: &[(String, crate::store::KeyMeta)], verbose: bool) {
 
     if verbose {
         let added_w = "ADDED".len();
+        let tags_w = entries
+            .iter()
+            .map(|(_, m)| {
+                if m.tags.is_empty() {
+                    1
+                } else {
+                    m.tags.join(", ").len()
+                }
+            })
+            .max()
+            .unwrap_or(4)
+            .max(4);
         println!(
-            "{:<name_w$}  {:<var_w$}  {:<added_w$}  NOTE",
-            "NAME", "ENV_VAR", "ADDED"
+            "{:<name_w$}  {:<var_w$}  {:<added_w$}  {:<tags_w$}  NOTE",
+            "NAME", "ENV_VAR", "ADDED", "TAGS"
         );
         for (name, meta) in entries {
             let note = meta.note.as_deref().unwrap_or("-");
             let added = format_date(&meta.added_at);
+            let tags = if meta.tags.is_empty() {
+                "-".to_string()
+            } else {
+                meta.tags.join(", ")
+            };
             println!(
-                "{name:<name_w$}  {:<var_w$}  {added:<added_w$}  {note}",
+                "{name:<name_w$}  {:<var_w$}  {added:<added_w$}  {tags:<tags_w$}  {note}",
                 meta.env_var
             );
         }
