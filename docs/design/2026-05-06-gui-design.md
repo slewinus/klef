@@ -129,15 +129,16 @@ Icône dans la barre de menu macOS (à côté de wifi/batterie). Clic = popover 
 - **Liste centrale** : keys du contexte sélectionné, triées par dernière utilisation (à défaut, ordre alpha).
 - **Détail (right pane ou modal)** : sur sélection, affiche meta + boutons d'action.
 
-### 5.2 Convention "projet" — pas de schéma
+### 5.2 Convention "projet" — sans changement de schéma pour les projets
 
 Les projets sont des **tags préfixés `project:`**. Exemple : `project:aviosphere`, `project:dahouse`.
 
-- Aucun changement à `KeyMeta`. Les projets sont une **vue logique** côté GUI.
+- **Pour les projets : aucun changement à `KeyMeta`.** Vue logique côté GUI uniquement.
 - CLI continue de gérer ces tags comme n'importe quel autre tag.
 - Side benefit : `klef list --tag project:aviosphere` marche déjà aujourd'hui.
+- Quand l'utilisateur clique "+ Add Project", la GUI crée le tag `project:nom-saisi` et le pré-applique aux clés ajoutées dans cette section.
 
-Quand l'utilisateur clique "+ Add Project" dans la GUI, ça ouvre une boîte de dialogue qui crée le tag `project:nom-saisi` et le pré-applique à toute clé ajoutée dans cette section.
+> **Changement de schéma assumé séparément** : pour le tri "last used" (cf. 5.4), `KeyMeta` gagne un champ optionnel `last_used_at: Option<OffsetDateTime>`, forward-compat via `#[serde(default, skip_serializing_if = "Option::is_none")]`. Mis à jour via une méthode `Store::record_access(name)` **distincte** de `get_value()`.
 
 ### 5.3 Global hotkey
 
@@ -149,15 +150,17 @@ Implémentation : `tauri-plugin-global-shortcut`.
 
 | Action | Geste | Backend call |
 |---|---|---|
-| Voir liste | Ouvrir popover | `Store::list()` |
+| Voir liste | Ouvrir popover | `Store::list()` → `Vec<KeyDto>` |
 | Filtrer par projet | Clic sur projet sidebar | filtre côté frontend |
 | Search fuzzy | Tape dans search bar | filtre côté frontend (fuzzysort.js) |
-| Copier value | Clic sur key OU Enter sur sélection | `Store::get_value()` + Tauri clipboard |
-| Voir value | Clic sur l'œil | `Store::get_value()` (pas auto-affiché) |
+| Copier value | Clic sur key OU Enter sur sélection | `Store::get_value()` (lecture pure) + Tauri clipboard, **puis `Store::record_access(name)` après copie confirmée** |
+| Voir value | Clic sur l'œil | `Store::get_value()` (pas auto-affiché, pas de record_access — la révélation n'est pas un usage productif) |
 | Add key | Bouton `+` ou Cmd+N | Form modal → `Store::add()` |
 | Edit | Bouton edit OU double-clic | Form modal → `Store::set_tags()` / `Store::add(force=true)` |
 | Delete | Menu contextuel OU Backspace + confirm | `Store::remove()` |
-| Drag-drop .env | Drag fichier sur popover | `klef discover` interactif (plan + confirm) |
+| Drag-drop .env | Drag fichier sur popover | `klef_core::import::{plan_import, apply_import}` (structs, pas du texte CLI) → wizard |
+
+> **Important : `get_value()` reste une lecture pure.** Aucune écriture metadata ne doit être déclenchée par une lecture — un disque plein ou un index read-only ne doit jamais faire échouer un `klef run -- npm start`. `record_access(name)` est une méthode séparée, appelée explicitement par la GUI après copie clipboard réussie. Le CLI ne l'appelle pas (cohérent avec son modèle "écriture seulement sur action explicite").
 
 ### 5.5 Backend selection
 
@@ -172,17 +175,22 @@ Implémentation : `tauri-plugin-global-shortcut`.
 
 Chaque sprint = une PR mergeable indépendamment, app reste fonctionnelle entre.
 
-### S1 — Workspace refactor (4h)
+### S1 — Workspace refactor (4-8h)
 
-**Livrable** : monorepo cargo, CLI tourne pareil qu'avant, tous les tests passent.
+**Livrable** : monorepo cargo, CLI tourne pareil qu'avant, tous les tests passent, le crate publié `klef` continue de marcher pour les utilisateurs `cargo install klef` existants.
 
-- [ ] Créer `crates/klef-core/`, déplacer `src/lib.rs` + ses modules dedans.
-- [ ] Créer `crates/klef-cli/`, déplacer `src/main.rs` + `src/cli.rs` dedans, importer `klef-core`.
-- [ ] `Cargo.toml` racine devient un workspace.
+- [ ] Créer `crates/klef-core/`, déplacer `src/lib.rs` + modules `store/`, `error.rs`, `envfile/`, etc.
+- [ ] Créer `crates/klef-cli/`, déplacer `src/main.rs` + `src/cli.rs` + `src/commands/` dedans, importer `klef-core`.
+- [ ] `Cargo.toml` racine devient un **virtual workspace**.
+- [ ] **Préserver le crate publié `klef`** : `klef-cli` est publié sous le nom `klef` (`[package] name = "klef"` + `[[bin]] name = "klef"`) pour ne pas casser `cargo install klef`.
+- [ ] Vérifier que les chemins d'index ne changent pas (`dirs::config_dir().join("klef/index.json")`).
 - [ ] Réajuster les imports : `crate::error::KlefError` → `klef_core::error::KlefError`.
-- [ ] Vérifier : `cargo build`, `cargo test --all-features`, `cargo clippy --all-targets --all-features -- -D warnings`.
-- [ ] Vérifier : `klef --version`, `klef list`, `klef --backend age:...` marchent toujours.
-- [ ] Mettre à jour `release.yml` pour build le bin depuis le workspace.
+- [ ] Migrer `tests/cli.rs` vers le crate `klef-cli` (ils testent le binaire).
+- [ ] Mettre à jour `release.yml` : `cargo build -p klef --release`.
+- [ ] Mettre à jour `homebrew/klef.rb` template + `scripts/update-homebrew-formula.sh` si besoin.
+- [ ] Mettre à jour le hook line-cap (`.githooks/`) pour les nouveaux paths.
+- [ ] Vérifier : `cargo build --workspace`, `cargo test --workspace --all-features`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+- [ ] Vérifier : `klef --version`, `klef list`, `klef --backend age:...` marchent identiquement.
 
 **Tests à ne pas casser** : 161+ existants.
 
@@ -190,12 +198,14 @@ Chaque sprint = une PR mergeable indépendamment, app reste fonctionnelle entre.
 
 **Livrable** : app qui s'ouvre, liste les clés du Keychain, copie au clic.
 
+- [ ] **Premier commit du sprint : écrire les DTOs dans `klef_core::dto`** — `KeyDto`, `TagSummaryDto`, `BackendConfig` (enum `Keychain | AgeFile { path, recipients }`). Sérialisables via `serde`. Avant que le frontend en consomme, le contrat est stable et testé côté Rust.
 - [ ] `cargo install create-tauri-app && cd crates && cargo create-tauri-app klef-gui --template svelte-ts`
-- [ ] Ajouter dep `klef-core` au `Cargo.toml` du gui.
+- [ ] Ajouter dep `klef-core` (path-relative dans le workspace) au `Cargo.toml` du gui.
 - [ ] Tauri command `list_keys()` qui appelle `Store::list()` et retourne `Vec<KeyDto>`.
 - [ ] Frontend Svelte : page unique avec la liste (table simple, pas encore de design).
 - [ ] Bouton "Copy" par row, copy via `tauri-plugin-clipboard-manager`.
 - [ ] Build + run : `cargo tauri dev`.
+- [ ] **Notarization smoke-test** : sur le scaffold vide, run `cargo tauri build` + `xcrun notarytool submit --wait` une fois pour détecter tôt une dep qui foire la notarization (avant d'investir 5 sprints dessus). Pas besoin de signer / publier — juste vérifier que ça passe.
 
 ### S3 — Menu bar + global hotkey (3h)
 
@@ -215,7 +225,8 @@ Chaque sprint = une PR mergeable indépendamment, app reste fonctionnelle entre.
 - [ ] Frontend : composant Sidebar qui groupe les tags `project:*` au-dessus des autres.
 - [ ] Click sur projet → filtre la liste centrale.
 - [ ] Search bar avec fuzzysort.js, filtre live sur name + note + tags.
-- [ ] Tri par "last used" — nécessite d'ajouter un `last_used_at: Option<OffsetDateTime>` au `KeyMeta` (à incrémenter sur `Store::get_value()`). **Décision** : on ajoute ce champ. Forward-compat via `#[serde(default)]`.
+- [ ] Tri par "last used" — nécessite d'ajouter un `last_used_at: Option<OffsetDateTime>` au `KeyMeta`. **Décision** : on ajoute ce champ. Forward-compat via `#[serde(default, skip_serializing_if = "Option::is_none")]`.
+- [ ] Ajouter `Store::record_access(name)` et l'appeler uniquement après copie clipboard réussie depuis la GUI. `Store::get_value()` reste une lecture pure.
 
 ### S5 — Add / edit / delete forms (4h)
 
@@ -233,12 +244,12 @@ Chaque sprint = une PR mergeable indépendamment, app reste fonctionnelle entre.
 - [ ] Tauri file drop event handler.
 - [ ] Wizard 2 étapes :
   1. Aperçu (similaire à `klef import --dry-run`) : table des keys détectées avec colonne "import / skip / merge".
-  2. Confirmation et exécution → `Store::add(force=true)` pour chaque ligne sélectionnée.
+  2. Confirmation et exécution → `klef_core::import::apply_import(&store, plan, options)` pour chaque ligne sélectionnée.
 - [ ] Option "rewrite source file with klef: references" comme sur le CLI.
 
-### S7 — Polish + signing/notarize (1 jour)
+### S7 — Polish app (1 jour)
 
-**Livrable** : DMG signé/notarisé, prêt à distribuer.
+**Livrable** : app utilisable au quotidien localement, prête pour packaging.
 
 - [ ] Iconographie : klef logo (générer un set d'icons via [icon.kitchen](https://icon.kitchen) à partir d'un SVG).
 - [ ] Light/dark mode auto.
@@ -246,13 +257,19 @@ Chaque sprint = une PR mergeable indépendamment, app reste fonctionnelle entre.
 - [ ] Empty states (pas de clés, pas de search results, etc.).
 - [ ] Settings panel : backend selection, theme, hotkey customization, "open at login" toggle.
 - [ ] About dialog : version, link GitHub.
+
+### S8 — Signing, notarization, distribution (1-2 jours)
+
+**Livrable** : DMG signé/notarisé, prêt à distribuer.
+
 - [ ] **Signing/notarization** :
   - [ ] Apple Developer cert installé.
-  - [ ] `tauri-plugin-updater` configuré (auto-update via GitHub Releases).
   - [ ] Build : `cargo tauri build --target aarch64-apple-darwin --target x86_64-apple-darwin`.
   - [ ] Sign + notarize via `xcrun notarytool`.
   - [ ] Universal DMG.
 - [ ] Workflow GitHub Actions `release-gui.yml` qui build sur tag `gui-v*`.
+- [ ] Homebrew cask `klef-gui` séparé de la formule CLI.
+- [ ] `tauri-plugin-updater` configuré après validation du canal GitHub Releases. Peut être reporté après v0.1 si nécessaire.
 
 ## 7. Distribution
 
@@ -264,21 +281,21 @@ Chaque sprint = une PR mergeable indépendamment, app reste fonctionnelle entre.
 
 **Versioning** : tags séparés `gui-v0.1.0`, etc. Le CLI garde son propre cycle (`v0.4.0`). Workspace cargo permet versions distinctes par crate.
 
-**Auto-update** : `tauri-plugin-updater` pointe vers GitHub Releases. Vérification au démarrage + bouton manuel dans Settings → About.
+**Auto-update** : option post-v0.1 si le premier DMG signé + Homebrew cask suffisent. Quand activé, `tauri-plugin-updater` pointe vers GitHub Releases, avec vérification au démarrage + bouton manuel dans Settings → About.
 
 ## 8. Sécurité — différences vs CLI
 
 - **Clipboard timing** : la GUI peut auto-clear le presse-papier après N secondes (configurable, default 30s). Le CLI ne peut pas, parce que pas de daemon. Ça résout naturellement [#25 reste — clipboard helper](https://github.com/slewinus/klef/issues/25).
 - **Display masking** : la valeur est cachée par défaut (****), reveal explicite via clic-œil. Empêche les screenshots accidentels.
-- **No persistence of decrypted values** : pour le backend age, la passphrase est gardée en mémoire pendant la session (process-lifetime). Quand l'app quitte ou se met en veille >5 min, la passphrase est wipe et il faut la retaper. Tauri permet hook sur l'événement system sleep.
+- **Backend Keychain — accès via ACL macOS** : l'app signée présente son Team ID + bundle identifier au Keychain. Premier accès → un prompt utilisateur "klef-gui wants to use your confidential information". Une fois accordé, plus de prompt sauf changement de signature. Aucune passphrase en jeu — c'est le système d'access groups d'Apple. Implication pratique : signature stable entre versions = UX silencieuse après le premier prompt.
+- **Backend age — cache passphrase mémoire** : pour le backend age (post-MVP), la passphrase est gardée en mémoire process-lifetime via `zeroize`. Wipe sur quit ou sleep > 5min (hook `power_monitor`). Aucune persistence sur disque.
 - **Audit log local** : option à activer dans Settings — log de chaque accès dans `~/Library/Application Support/klef-gui/audit.log`.
 
 ## 9. Décisions ouvertes (à trancher pendant l'implémentation)
 
-1. **Stockage du `last_used_at`** — on l'ajoute à `KeyMeta` ou on le garde en GUI-side state (pas synchronisé entre machines) ? Probablement dans `KeyMeta` pour cohérence avec le CLI.
-2. **Multi-window** — est-ce qu'on veut une window de "vault management" plein écran en plus du popover, ou tout dans le popover ? Pas critique v1, popover-only pour démarrer.
-3. **Recherche par tag combinée** — `project:aviosphere AND tag:billing` ? Probablement filter combinés via UI sidebar (clic projet + clic tag), pas de query language v1.
-4. **Notifications système** — sur copie de value, est-ce qu'on notifie "Stripe key copied to clipboard" ? Bonus, pas v1.
+1. **Multi-window** — est-ce qu'on veut une window de "vault management" plein écran en plus du popover, ou tout dans le popover ? Pas critique v1, popover-only pour démarrer.
+2. **Recherche par tag combinée** — `project:aviosphere AND tag:billing` ? Probablement filter combinés via UI sidebar (clic projet + clic tag), pas de query language v1.
+3. **Notifications système** — sur copie de value, est-ce qu'on notifie "Stripe key copied to clipboard" ? Bonus, pas v1.
 
 ## 10. Roadmap après v0.1 GUI
 
@@ -292,9 +309,9 @@ Chaque sprint = une PR mergeable indépendamment, app reste fonctionnelle entre.
 | Risque | Probabilité | Impact | Mitigation |
 |---|---|---|---|
 | Tauri plugin global-shortcut crash sur macOS 14+ | Faible | Moyen | Test sur tes Mac avant ship ; fallback sur menu bar click |
-| Apple notarization rejette une dep | Moyen | Élevé (no-ship) | Notarize tôt (S2 idéalement), pas en bout de chaîne |
+| Apple notarization rejette une dep | Moyen | Élevé (no-ship) | Smoke-test notarytool dès S2 sur le scaffold vide ; vraie chaîne sign+notarize en S8 |
 | Bundle size > 50MB | Moyen | Faible (sécurité reputational) | Mesurer dès S2 ; strip + LTO + tauri-bundler trim |
-| Keychain access prompts spamment l'user | Élevé sur la prem session | Moyen (UX) | Passphrase cache + claire docs ; éventuellement issue dédiée pour ACL |
+| Keychain access prompts répétés | Faible si signature stable | Moyen (UX) | App signée avec Team ID stable + bundle identifier figé → un prompt initial puis silence. À valider lors du premier build signé en S8. |
 | GUI revele des bugs cachés du CLI | Moyen | Élevé (bonne nouvelle en fait) | Embrasser, fixer, on devient meilleur |
 
 ## 12. Out of scope explicite
