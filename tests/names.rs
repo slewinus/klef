@@ -69,3 +69,35 @@ fn completions_zsh_includes_klef_names_function() {
         .success()
         .stdout(predicates::str::contains("_klef_names()"));
 }
+
+#[test]
+fn completions_bash_includes_klef_names_function() {
+    klef(TempDir::new().unwrap().path())
+        .arg("completions")
+        .arg("bash")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("_klef_names()"));
+}
+
+#[test]
+fn completions_bash_uses_klef_names_for_positionals() {
+    klef(TempDir::new().unwrap().path())
+        .arg("completions")
+        .arg("bash")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(
+            r#"COMPREPLY=( $(compgen -W "$(_klef_names)" -- "${cur}") )"#,
+        ));
+}
+
+#[test]
+fn completions_fish_uses_klef_names_command() {
+    klef(TempDir::new().unwrap().path())
+        .arg("completions")
+        .arg("fish")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("(klef _names)"));
+}
