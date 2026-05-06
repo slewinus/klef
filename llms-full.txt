@@ -118,7 +118,7 @@ klef completions fish > ~/.config/fish/completions/klef.fish
 | `klef show <name>` | Valeur + métadonnées. |
 | `klef list [--format table\|json] [-v\|--verbose] [--filter PATTERN]` | Lister les clés (jamais les valeurs). `--verbose` ajoute la date d'ajout, `--filter` cherche en sous-chaîne. |
 | `klef rm <name>` (alias `remove`) | Supprimer une clé. |
-| `klef edit <name>` | Changer la valeur ou les métadonnées. `--value-from-file` accepté ici aussi. |
+| `klef edit <name>` | Changer la valeur ou les métadonnées. `--value-from-file` pour les secrets multi-lignes. `--note-edit` ouvre `$VISUAL`/`$EDITOR` pour éditer la note. |
 | `klef set-note <name> <text>` | Raccourci pour `edit --note`. |
 | `klef rename <old> <new>` | Renommer une clé. |
 | `klef export <name>... [--format shell\|dotenv]` | Émettre des lignes `export`. |
@@ -154,6 +154,16 @@ Les hooks git (`fmt`, `clippy`, `tests`, line-cap < 300 lignes/fichier) sont ver
 
 - **Quickstart** : [examples/quickstart/](./examples/quickstart/) — `.env` + script consommateur, smoke test bout-en-bout.
 - **Changelog** : [CHANGELOG.md](./CHANGELOG.md)
+
+## Pour les agents IA
+
+klef expose une documentation pensée pour les assistants IA :
+
+- **[`llms.txt`](./llms.txt)** : index de navigation (convention [llmstxt.org](https://llmstxt.org/))
+- **[`llms-full.txt`](./llms-full.txt)** : doc concaténée pour ingestion en un prompt
+- **[`docs/llm-usage.md`](./docs/llm-usage.md)** : patterns concrets — décision table, exit codes, JSON outputs
+
+Les agents Claude Code, Cursor, ChatGPT peuvent ingérer ces fichiers et savoir comment piloter klef sans hallucination.
 
 ## Statut
 

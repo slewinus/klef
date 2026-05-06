@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `klef edit <name> --note-edit` opens `$VISUAL` (or `$EDITOR`) with the current note pre-filled, saves the trimmed file content as the new note. Falls back to a single-line stdin prompt when neither env var is set. Empty result clears the note (#14).
+
 ## [0.2.0] - 2026-05-06
 
 ### Added
