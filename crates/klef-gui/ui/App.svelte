@@ -21,6 +21,7 @@
   import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
   import SettingsModal from "./lib/SettingsModal.svelte";
+  import { loadSettings } from "./lib/settings";
   import Toast from "./lib/Toast.svelte";
 
   let keys = $state<KeyDto[]>([]);
@@ -55,7 +56,9 @@
     try {
       const value = await getKeyValue(key.name);
       await copyToClipboard(value);
-      showToast(`${key.name} copied — clipboard clears in 30s`);
+      const s = loadSettings().autoClearSeconds;
+      const suffix = s > 0 ? ` — clipboard clears in ${s}s` : "";
+      showToast(`${key.name} copied${suffix}`);
       // Optimistic update so the row jumps to top immediately.
       const now = new Date().toISOString();
       keys = keys.map((k) =>
