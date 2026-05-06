@@ -10,14 +10,27 @@ const KLEF_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Returns an error if the index can't be loaded.
 pub fn run(store: &Store, format: StatusFormat) -> Result<(), KlefError> {
     let entries = store.list()?;
-    let orphans = store.orphan_index_entries()?;
-    let healthy = orphans.is_empty();
+    let index_orphans = store.orphan_index_entries()?;
+    let backend_orphans = store.orphan_backend_entries()?;
+    let healthy = index_orphans.is_empty() && backend_orphans.as_ref().is_none_or(Vec::is_empty);
     let index_path = store_index_path();
     let backend = store.backend_description();
 
     match format {
-        StatusFormat::Text => print_text(entries.len(), &orphans, &index_path, &backend),
-        StatusFormat::Json => print_json(entries.len(), &orphans, &index_path, &backend)?,
+        StatusFormat::Text => print_text(
+            entries.len(),
+            &index_orphans,
+            backend_orphans.as_deref(),
+            &index_path,
+            &backend,
+        ),
+        StatusFormat::Json => print_json(
+            entries.len(),
+            &index_orphans,
+            backend_orphans.as_deref(),
+            &index_path,
+            &backend,
+        )?,
     }
 
     if !healthy {
@@ -35,25 +48,43 @@ fn store_index_path() -> String {
     })
 }
 
-fn print_text(key_count: usize, orphans: &[String], index_path: &str, backend: &str) {
+fn print_text(
+    key_count: usize,
+    index_orphans: &[String],
+    backend_orphans: Option<&[String]>,
+    index_path: &str,
+    backend: &str,
+) {
     println!("klef         {KLEF_VERSION}");
     println!("backend      {backend}");
     println!("index        {index_path}");
     println!("keys         {key_count} in index");
-    if orphans.is_empty() {
-        println!("desync       none");
+
+    if index_orphans.is_empty() {
+        println!("desync (i→b) none");
     } else {
         println!(
-            "desync       {} orphan(s) in index: {}",
-            orphans.len(),
-            orphans.join(", ")
+            "desync (i→b) {} orphan(s) in index: {}",
+            index_orphans.len(),
+            index_orphans.join(", ")
         );
+    }
+
+    match backend_orphans {
+        None => println!("desync (b→i) unavailable (backend cannot enumerate)"),
+        Some([]) => println!("desync (b→i) none"),
+        Some(o) => println!(
+            "desync (b→i) {} orphan(s) in backend: {}",
+            o.len(),
+            o.join(", ")
+        ),
     }
 }
 
 fn print_json(
     key_count: usize,
-    orphans: &[String],
+    index_orphans: &[String],
+    backend_orphans: Option<&[String]>,
     index_path: &str,
     backend: &str,
 ) -> Result<(), KlefError> {
@@ -62,7 +93,10 @@ fn print_json(
         "backend": backend,
         "index_path": index_path,
         "keys": key_count,
-        "desync": orphans,
+        "desync": {
+            "index_to_backend": index_orphans,
+            "backend_to_index": backend_orphans,
+        },
     });
     let s = serde_json::to_string_pretty(&body).map_err(|e| KlefError::IndexCorrupt {
         path: std::path::PathBuf::new(),

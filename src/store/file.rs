@@ -82,6 +82,12 @@ impl Backend for FileBackend {
             .ok_or_else(|| KlefError::KeyNotFound(name.to_string()))?;
         self.save(&data)
     }
+
+    fn list_names(&self) -> Result<Option<Vec<String>>, KlefError> {
+        let _g = self.lock.lock().unwrap();
+        let data = self.load()?;
+        Ok(Some(data.secrets.keys().cloned().collect()))
+    }
 }
 
 #[cfg(test)]

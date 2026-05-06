@@ -52,9 +52,36 @@ impl Store {
             added_at: data.keys.get(name).map_or(now, |k| k.added_at),
             updated_at: now,
         };
+        // Atomicity (closes #48):
+        //
+        // Naive order — backend.set then meta.save_index — silently loses
+        // data on index save failure: the secret is in the keychain but
+        // klef list can't see it, and the next `add` of the same name
+        // overwrites the orphan.
+        //
+        // We do:
+        //   1) snapshot the prior backend value (so we can restore it on
+        //      failure during a force-overwrite),
+        //   2) write the new value,
+        //   3) write the index — if THIS fails, compensate: restore the
+        //      prior value (or remove the new one if there was none),
+        //      so the user sees a clean error rather than silent corruption.
+        //
+        // Compensation is best-effort. If it also fails we still leak an
+        // orphan, but `status` reports it for enumerable backends (age,
+        // file). On keychain, double-failure (disk + keychain) is rare and
+        // surfaces two error lines to the user.
+        let prior = self.backend.get(name).ok();
         self.backend.set(name, value)?;
         data.keys.insert(name.to_string(), meta);
-        self.meta.save_index(&data)?;
+        if let Err(e) = self.meta.save_index(&data) {
+            if let Some(old) = prior {
+                let _ = self.backend.set(name, &old);
+            } else {
+                let _ = self.backend.remove(name);
+            }
+            return Err(e);
+        }
         Ok(())
     }
 
@@ -182,13 +209,28 @@ impl Store {
         if data.keys.contains_key(new) {
             return Err(KlefError::KeyAlreadyExists(new.to_string()));
         }
+        // Atomicity (closes #48):
+        //
+        // Sequence:
+        //   1) read old value,
+        //   2) write the new key in the backend (now backend has both),
+        //   3) write the index — if it fails, undo the new key,
+        //   4) remove the old key from the backend (best-effort).
+        //
+        // Step 4 may fail (keychain hiccup, etc.). That leaves `old` in the
+        // backend without an index entry — a reverse orphan, detectable via
+        // `status` for enumerable backends. We accept it instead of failing
+        // the whole rename, since the index already reflects the new state.
         let value = self.backend.get(old)?;
         self.backend.set(new, &value)?;
-        let _ = self.backend.remove(old);
         let mut meta = data.keys.remove(old).expect("checked above");
         meta.updated_at = OffsetDateTime::now_utc();
         data.keys.insert(new.to_string(), meta);
-        self.meta.save_index(&data)?;
+        if let Err(e) = self.meta.save_index(&data) {
+            let _ = self.backend.remove(new);
+            return Err(e);
+        }
+        let _ = self.backend.remove(old);
         Ok(())
     }
 
@@ -231,5 +273,26 @@ impl Store {
             }
         }
         Ok(orphans)
+    }
+
+    /// Return key names in the backend that are missing from the index.
+    ///
+    /// `Ok(None)` means the backend cannot enumerate (keychain) — the check is
+    /// not possible, not that the backend is necessarily clean. Closes #49.
+    ///
+    /// # Errors
+    /// Returns an error if enumeration is supported but fails, or the index
+    /// can't be loaded.
+    pub fn orphan_backend_entries(&self) -> Result<Option<Vec<String>>, KlefError> {
+        let Some(backend_keys) = self.backend.list_names()? else {
+            return Ok(None);
+        };
+        let data = self.meta.load_index()?;
+        Ok(Some(
+            backend_keys
+                .into_iter()
+                .filter(|n| !data.keys.contains_key(n))
+                .collect(),
+        ))
     }
 }

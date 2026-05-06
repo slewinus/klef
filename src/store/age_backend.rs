@@ -239,6 +239,16 @@ impl Backend for AgeBackend {
             .ok_or_else(|| KlefError::KeyNotFound(name.to_string()))?;
         self.save_vault(&vault)
     }
+
+    fn list_names(&self) -> Result<Option<Vec<String>>, KlefError> {
+        // Empty vault file is treated as "nothing yet" — don't prompt for a
+        // passphrase just to enumerate zero entries.
+        if !self.inner.path.exists() {
+            return Ok(Some(Vec::new()));
+        }
+        let vault = self.load_vault()?;
+        Ok(Some(vault.secrets.keys().cloned().collect()))
+    }
 }
 
 impl MetaStore for AgeBackend {
