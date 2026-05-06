@@ -45,13 +45,16 @@ fn read_value(name: &str, value_from_file: Option<&Path>) -> Result<String, Klef
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::{MemoryBackend, Store};
+    use crate::store::{IndexFile, MemoryBackend, MetaStore, Store};
     use tempfile::tempdir;
 
     fn store() -> (Store, tempfile::TempDir) {
         let d = tempdir().unwrap();
         (
-            Store::new(Box::new(MemoryBackend::new()), d.path().join("i.json")),
+            Store::new(
+                Box::new(MemoryBackend::new()),
+                Box::new(IndexFile::new(d.path().join("i.json"))) as Box<dyn MetaStore>,
+            ),
             d,
         )
     }

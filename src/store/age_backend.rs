@@ -5,28 +5,82 @@
 //!
 //! Passphrase is sourced from `KLEF_PASSPHRASE` env var (CI) or from a masked
 //! TTY prompt, and cached for the lifetime of the process.
+//!
+//! As of v0.4.1 the vault also stores `IndexData` internally, so metadata
+//! (`env_var`, note, tags, timestamps) never touches the global plaintext index.
 
 use crate::error::KlefError;
+use crate::store::MetaStore;
 use crate::store::backend::Backend;
+use crate::store::index::{IndexData, KeyMeta};
 use age::secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::io::{IsTerminal, Read, Write};
+use std::io::IsTerminal;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use time::OffsetDateTime;
 use zeroize::Zeroizing;
 
-#[derive(Default, Serialize, Deserialize)]
+use super::age_crypto::{age_decrypt, age_encrypt};
+
+// ---------------------------------------------------------------------------
+// On-disk format
+// ---------------------------------------------------------------------------
+
+/// The full contents of an age vault file (v1).
+///
+/// `version` is written on every save and is defaulted to 1 on deserialization
+/// so that legacy v0.4 vaults (which had only `{"secrets":{...}}`) load cleanly.
+/// The missing `index` field is filled with a synthesized default during
+/// [`AgeBackend::load_vault`].
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct AgeData {
+struct AgeVault {
+    #[serde(default = "vault_version")]
+    version: u32,
     secrets: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "is_default_index")]
+    index: IndexData,
 }
+
+const fn vault_version() -> u32 {
+    1
+}
+
+fn is_default_index(d: &IndexData) -> bool {
+    d.version == 1 && d.keys.is_empty()
+}
+
+impl Default for AgeVault {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            secrets: BTreeMap::new(),
+            index: IndexData::default(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Backend struct
+// ---------------------------------------------------------------------------
 
 /// Age-encrypted file backend.
 ///
 /// File doesn't exist on first `set`? Created with the user's passphrase
 /// (prompted twice for confirmation). Passphrase cached for the process lifetime.
+///
+/// The backend is cheaply `Clone`-able: all clones share the same underlying
+/// `Arc<AgeBackendInner>`, so passphrase and file path are shared.
+/// This lets the same instance be handed to both `Box<dyn Backend>` and
+/// `Box<dyn MetaStore>` in [`crate::lib::build_store`].
+#[derive(Clone)]
 pub struct AgeBackend {
+    inner: Arc<AgeBackendInner>,
+}
+
+struct AgeBackendInner {
     path: PathBuf,
     state: Mutex<State>,
 }
@@ -42,8 +96,10 @@ impl AgeBackend {
     #[must_use]
     pub fn new(path: PathBuf) -> Self {
         Self {
-            path,
-            state: Mutex::new(State::default()),
+            inner: Arc::new(AgeBackendInner {
+                path,
+                state: Mutex::new(State::default()),
+            }),
         }
     }
 
@@ -52,7 +108,7 @@ impl AgeBackend {
     fn passphrase(&self, confirm: bool) -> Result<SecretString, KlefError> {
         // Check cache first, then drop the lock before any blocking I/O.
         {
-            let state = self.state.lock().unwrap();
+            let state = self.inner.state.lock().unwrap();
             if let Some(p) = &state.passphrase {
                 return Ok(p.clone());
             }
@@ -61,7 +117,7 @@ impl AgeBackend {
         let pass = if let Ok(env_pass) = std::env::var("KLEF_PASSPHRASE") {
             SecretString::from(env_pass)
         } else if std::io::stdin().is_terminal() {
-            let prompt = format!("Passphrase for {}: ", self.path.display());
+            let prompt = format!("Passphrase for {}: ", self.inner.path.display());
             let p = rpassword::prompt_password(&prompt)
                 .map_err(|e| KlefError::BackendUnavailable(e.to_string()))?;
             if confirm {
@@ -81,167 +137,148 @@ impl AgeBackend {
             ));
         };
 
-        self.state.lock().unwrap().passphrase = Some(pass.clone());
+        self.inner.state.lock().unwrap().passphrase = Some(pass.clone());
         Ok(pass)
     }
 
-    fn load(&self) -> Result<AgeData, KlefError> {
-        if !self.path.exists() {
-            return Ok(AgeData::default());
+    /// Load the vault from disk. If the file does not exist, returns an empty vault.
+    /// Legacy vaults (no `index` field) are transparently upgraded: missing metadata
+    /// entries are synthesized from the secret key names so callers always see a
+    /// consistent view.
+    fn load_vault(&self) -> Result<AgeVault, KlefError> {
+        if !self.inner.path.exists() {
+            return Ok(AgeVault::default());
         }
-        let ciphertext = std::fs::read(&self.path).map_err(KlefError::Io)?;
+        let ciphertext = std::fs::read(&self.inner.path).map_err(KlefError::Io)?;
         // File exists → no confirmation needed; we're reading an existing vault.
         let pass = self.passphrase(false)?;
         let plaintext = age_decrypt(&ciphertext, &pass)?;
-        serde_json::from_slice(&plaintext).map_err(|e| KlefError::IndexCorrupt {
-            path: self.path.clone(),
-            reason: format!("age vault content not valid JSON: {e}"),
-        })
+        let mut vault: AgeVault =
+            serde_json::from_slice(&plaintext).map_err(|e| KlefError::IndexCorrupt {
+                path: self.inner.path.clone(),
+                reason: format!("age vault content not valid JSON: {e}"),
+            })?;
+
+        // Auto-backfill missing metadata for keys present in secrets but not in
+        // index.  Happens transparently on legacy v0.4 vaults that had no embedded
+        // index field.  The synthesized entries are written back on the next save,
+        // so the migration is one-shot.
+        let now = OffsetDateTime::now_utc();
+        let secret_names: Vec<String> = vault.secrets.keys().cloned().collect();
+        for name in secret_names {
+            if !vault.index.keys.contains_key(&name) {
+                vault.index.keys.insert(
+                    name.clone(),
+                    KeyMeta {
+                        env_var: default_env_var(&name),
+                        note: None,
+                        tags: vec![],
+                        added_at: now,
+                        updated_at: now,
+                    },
+                );
+            }
+        }
+
+        Ok(vault)
     }
 
-    fn save(&self, data: &AgeData) -> Result<(), KlefError> {
-        let plaintext: Zeroizing<Vec<u8>> = Zeroizing::new(serde_json::to_vec(data).map_err(
+    /// Serialize the vault and atomically write it to disk (tmp + rename).
+    fn save_vault(&self, vault: &AgeVault) -> Result<(), KlefError> {
+        let plaintext: Zeroizing<Vec<u8>> = Zeroizing::new(serde_json::to_vec(vault).map_err(
             |e| KlefError::IndexCorrupt {
-                path: self.path.clone(),
+                path: self.inner.path.clone(),
                 reason: format!("failed to serialize age vault: {e}"),
             },
         )?);
 
         // First save (file doesn't exist yet) → confirm passphrase.
-        let confirm_needed = !self.path.exists();
+        let confirm_needed = !self.inner.path.exists();
         let pass = self.passphrase(confirm_needed)?;
         let ciphertext = age_encrypt(&plaintext, &pass)?;
 
-        if let Some(parent) = self.path.parent() {
+        if let Some(parent) = self.inner.path.parent() {
             std::fs::create_dir_all(parent).map_err(KlefError::Io)?;
         }
-        let tmp = self.path.with_extension("age.tmp");
+        let tmp = self.inner.path.with_extension("age.tmp");
         std::fs::write(&tmp, &ciphertext).map_err(KlefError::IndexWrite)?;
-        std::fs::rename(&tmp, &self.path).map_err(KlefError::IndexWrite)?;
+        std::fs::rename(&tmp, &self.inner.path).map_err(KlefError::IndexWrite)?;
         Ok(())
     }
 }
 
+// ---------------------------------------------------------------------------
+// Trait impls
+// ---------------------------------------------------------------------------
+
 impl Backend for AgeBackend {
+    fn describe(&self) -> String {
+        format!("age:{}", self.inner.path.display())
+    }
+
     fn get(&self, name: &str) -> Result<String, KlefError> {
-        let data = self.load()?;
-        data.secrets
+        let vault = self.load_vault()?;
+        vault
+            .secrets
             .get(name)
             .cloned()
             .ok_or_else(|| KlefError::KeyNotFound(name.to_string()))
     }
 
     fn set(&self, name: &str, value: &str) -> Result<(), KlefError> {
-        let mut data = self.load()?;
-        data.secrets.insert(name.to_string(), value.to_string());
-        self.save(&data)
+        let mut vault = self.load_vault()?;
+        vault.secrets.insert(name.to_string(), value.to_string());
+        self.save_vault(&vault)
     }
 
     fn remove(&self, name: &str) -> Result<(), KlefError> {
-        let mut data = self.load()?;
-        data.secrets
+        let mut vault = self.load_vault()?;
+        vault
+            .secrets
             .remove(name)
             .ok_or_else(|| KlefError::KeyNotFound(name.to_string()))?;
-        self.save(&data)
+        self.save_vault(&vault)
     }
 }
 
-fn age_encrypt(plaintext: &[u8], pass: &SecretString) -> Result<Vec<u8>, KlefError> {
-    let encryptor = age::Encryptor::with_user_passphrase(pass.clone());
-    let mut out = Vec::new();
-    let mut writer = encryptor
-        .wrap_output(&mut out)
-        .map_err(|e| KlefError::BackendUnavailable(format!("age encrypt init: {e}")))?;
-    writer.write_all(plaintext).map_err(KlefError::Io)?;
-    writer
-        .finish()
-        .map_err(|e| KlefError::BackendUnavailable(format!("age encrypt finish: {e}")))?;
-    Ok(out)
+impl MetaStore for AgeBackend {
+    fn load_index(&self) -> Result<IndexData, KlefError> {
+        Ok(self.load_vault()?.index)
+    }
+
+    fn save_index(&self, data: &IndexData) -> Result<(), KlefError> {
+        let mut vault = self.load_vault()?;
+        vault.index = data.clone();
+        self.save_vault(&vault)
+    }
 }
 
-fn age_decrypt(ciphertext: &[u8], pass: &SecretString) -> Result<Zeroizing<Vec<u8>>, KlefError> {
-    let identity = age::scrypt::Identity::new(pass.clone());
-    let decryptor = age::Decryptor::new(ciphertext)
-        .map_err(|e| KlefError::BackendUnavailable(format!("age decrypt init: {e}")))?;
-    let mut output = Zeroizing::new(Vec::new());
-    let mut reader = decryptor
-        .decrypt(std::iter::once(&identity as &dyn age::Identity))
-        .map_err(|e| KlefError::BackendUnavailable(format!("age decrypt: {e}")))?;
-    reader.read_to_end(&mut output).map_err(KlefError::Io)?;
-    Ok(output)
+// ---------------------------------------------------------------------------
+// Helpers (mirror of store::mod private fn)
+// ---------------------------------------------------------------------------
+
+pub(crate) fn default_env_var(name: &str) -> String {
+    let upper: String = name
+        .chars()
+        .map(|c| {
+            if c == '-' {
+                '_'
+            } else {
+                c.to_ascii_uppercase()
+            }
+        })
+        .collect();
+    format!("{upper}_API_KEY")
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+// Tests are in a separate file for file-cap discipline (included here so they
+// can still access private types like `State` / `AgeBackendInner`).
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
-
-    fn set_passphrase(b: &AgeBackend, pass: &str) {
-        b.state.lock().unwrap().passphrase = Some(SecretString::from(pass.to_string()));
-    }
-
-    #[test]
-    fn round_trip_with_passphrase() {
-        let d = tempdir().unwrap();
-        let p = d.path().join("v.age");
-        let b = AgeBackend::new(p.clone());
-        set_passphrase(&b, "secret");
-
-        b.set("k", "v").unwrap();
-        assert_eq!(b.get("k").unwrap(), "v");
-
-        // Reopen with same passphrase — same value.
-        let b2 = AgeBackend::new(p);
-        set_passphrase(&b2, "secret");
-        assert_eq!(b2.get("k").unwrap(), "v");
-    }
-
-    #[test]
-    fn wrong_passphrase_returns_error() {
-        let d = tempdir().unwrap();
-        let p = d.path().join("v.age");
-        let b = AgeBackend::new(p.clone());
-        set_passphrase(&b, "right");
-        b.set("k", "v").unwrap();
-
-        let b2 = AgeBackend::new(p);
-        set_passphrase(&b2, "wrong");
-        let result = b2.get("k");
-        assert!(matches!(result, Err(KlefError::BackendUnavailable(_))));
-    }
-
-    #[test]
-    fn missing_key_is_keynotfound() {
-        let d = tempdir().unwrap();
-        let p = d.path().join("v.age");
-        let b = AgeBackend::new(p);
-        set_passphrase(&b, "x");
-        b.set("a", "1").unwrap();
-        assert!(matches!(b.get("nope"), Err(KlefError::KeyNotFound(_))));
-    }
-
-    #[test]
-    fn remove_then_get_fails() {
-        let d = tempdir().unwrap();
-        let p = d.path().join("v.age");
-        let b = AgeBackend::new(p);
-        set_passphrase(&b, "x");
-        b.set("k", "v").unwrap();
-        b.remove("k").unwrap();
-        assert!(matches!(b.get("k"), Err(KlefError::KeyNotFound(_))));
-    }
-
-    #[test]
-    fn ciphertext_does_not_contain_value() {
-        let d = tempdir().unwrap();
-        let p = d.path().join("v.age");
-        let b = AgeBackend::new(p.clone());
-        set_passphrase(&b, "x");
-        b.set("api-key", "sk_live_super_secret_value_xyz").unwrap();
-        let bytes = std::fs::read(&p).unwrap();
-        assert!(
-            !bytes.windows(15).any(|w| w == b"sk_live_super_s"),
-            "ciphertext leaked plaintext value"
-        );
-    }
+    include!("age_backend_tests.rs");
 }

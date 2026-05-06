@@ -7,7 +7,7 @@ pub mod store;
 use cli::{Cli, Command};
 use error::KlefError;
 use std::path::PathBuf;
-use store::{AgeBackend, Backend, KeychainBackend, Store};
+use store::{AgeBackend, Backend, IndexFile, KeychainBackend, MetaStore, Store};
 
 /// Dispatch the parsed CLI to the appropriate command handler.
 ///
@@ -101,34 +101,41 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
 }
 
 fn build_store(backend_spec: Option<&str>) -> Result<Store, KlefError> {
-    let index_path = index_path()?;
-    let backend = if let Some(spec) = backend_spec {
-        backend_from_spec(spec)?
-    } else if let Some(b) = backend_from_env() {
-        b
-    } else {
-        Box::new(KeychainBackend::new())
-    };
-    Ok(Store::new(backend, index_path))
-}
+    let backend: Box<dyn Backend>;
+    let meta: Box<dyn MetaStore>;
 
-fn backend_from_spec(spec: &str) -> Result<Box<dyn Backend>, KlefError> {
-    if let Some(path) = spec.strip_prefix("age:") {
-        if path.is_empty() {
+    if let Some(spec) = backend_spec {
+        if let Some(path) = spec.strip_prefix("age:") {
+            if path.is_empty() {
+                return Err(KlefError::BackendUnavailable(
+                    "--backend age: requires a path (e.g. age:/path/to/secrets.age)".to_string(),
+                ));
+            }
+            // Both backend and meta share the same Arc<AgeBackendInner>, so the
+            // passphrase is cached across both trait calls and only one vault file
+            // is ever read/written. The global index file is never touched.
+            let age = AgeBackend::new(PathBuf::from(path));
+            backend = Box::new(age.clone());
+            meta = Box::new(age);
+        } else if spec.starts_with("file:") {
             return Err(KlefError::BackendUnavailable(
-                "--backend age: requires a path (e.g. age:/path/to/secrets.age)".to_string(),
+                "file: backend is debug-only; use age: for production".to_string(),
             ));
+        } else {
+            return Err(KlefError::BackendUnavailable(format!(
+                "unknown backend spec '{spec}' (supported: age:/path/to/file.age)"
+            )));
         }
-        Ok(Box::new(AgeBackend::new(PathBuf::from(path))))
-    } else if spec.starts_with("file:") {
-        Err(KlefError::BackendUnavailable(
-            "file: backend is debug-only; use age: for production".to_string(),
-        ))
+    } else if let Some(b) = backend_from_env() {
+        // Debug-only KLEF_TEST_BACKEND=file:... still uses the global IndexFile.
+        backend = b;
+        meta = Box::new(IndexFile::new(index_path()?));
     } else {
-        Err(KlefError::BackendUnavailable(format!(
-            "unknown backend spec '{spec}' (supported: age:/path/to/file.age)"
-        )))
+        backend = Box::new(KeychainBackend::new());
+        meta = Box::new(IndexFile::new(index_path()?));
     }
+
+    Ok(Store::new(backend, meta))
 }
 
 /// Pick a non-default backend from `KLEF_TEST_BACKEND` if and only if this is a
