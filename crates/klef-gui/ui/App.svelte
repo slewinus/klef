@@ -7,6 +7,10 @@
     listKeys,
   } from "./lib/api";
   import { filterByProject, filterKeys } from "./lib/filter";
+  import {
+    hideCurrentPopover,
+    setupPopoverLifecycle,
+  } from "./lib/popoverLifecycle";
   import type { KeyDto } from "./lib/types";
   import AddKeyModal from "./lib/AddKeyModal.svelte";
   import ConfirmDialog from "./lib/ConfirmDialog.svelte";
@@ -88,21 +92,14 @@
     showAddModal || pendingDelete !== null || editTarget !== null,
   );
 
-  async function hidePopover() {
-    const m = await import("@tauri-apps/api/webviewWindow");
-    await m.getCurrentWebviewWindow().hide();
-  }
-
   function handleKeydown(e: KeyboardEvent) {
     if (anyModalOpen) return;
     // Esc: clear the query if there's one, otherwise hide the popover.
-    // (Auto-hide-on-blur is disabled in main.rs because it conflicts with
-    // modal mounting; users dismiss explicitly via Esc here.)
     if (e.key === "Escape") {
       if (query) {
         query = "";
       } else {
-        hidePopover();
+        hideCurrentPopover();
       }
     }
     // Enter on a single visible result triggers copy.
@@ -132,9 +129,11 @@
 
   onMount(async () => {
     refresh();
-    const { listen } = await import("@tauri-apps/api/event");
-    const unlisten = await listen("popover-shown", () => refresh());
-    return () => unlisten();
+    const teardown = await setupPopoverLifecycle(
+      () => refresh(),
+      () => anyModalOpen,
+    );
+    return teardown;
   });
 </script>
 
