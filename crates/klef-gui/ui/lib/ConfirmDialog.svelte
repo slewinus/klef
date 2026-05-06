@@ -69,7 +69,7 @@
 
 <style>
   .backdrop {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.3);
     z-index: 10;
@@ -77,7 +77,7 @@
     cursor: pointer;
   }
   .modal {
-    position: fixed;
+    position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
