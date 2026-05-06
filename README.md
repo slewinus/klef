@@ -143,10 +143,22 @@ klef completions fish > ~/.config/fish/completions/klef.fish
 # Setup hooks (à faire une fois après le clone)
 ./scripts/setup-dev.sh
 
-# Build / test (cargo workspace : klef-core + klef-cli)
+# Build / test (cargo workspace : klef-core + klef-cli + klef-gui)
 cargo build --workspace
 cargo test --workspace --all-features
 cargo run -p klef -- --help
+```
+
+### GUI (klef-gui)
+
+Le crate Tauri a un frontend Svelte qui doit être bundlé avant un `cargo build/run -p klef-gui` (parce que `tauri::generate_context!` valide `frontendDist` au compile time) :
+
+```bash
+cd crates/klef-gui
+npm ci                # une fois
+npm run build         # à chaque modif du frontend (ou utiliser `npm run dev` en parallèle de cargo run)
+cd ../..
+cargo run -p klef-gui # menu bar mode : icône en haut à droite, clic pour ouvrir
 ```
 
 Les hooks git (`fmt`, `clippy`, `tests`, line-cap < 300 lignes/fichier) sont versionnés dans `.githooks/`. CI sur macOS + Ubuntu via GitHub Actions (`.github/workflows/ci.yml`).

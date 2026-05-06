@@ -14,14 +14,20 @@
       {
         "label": "main",
         "title": "klef",
-        "width": 480,
-        "height": 600,
-        "resizable": true,
-        "fullscreen": false
+        "width": 400,
+        "height": 500,
+        "resizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost"
     }
   },
   "bundle": {
@@ -32,6 +38,6 @@
     ],
     "category": "DeveloperTool",
     "shortDescription": "Local-first vault for API keys",
-    "longDescription": "klef stores API keys in the OS keychain. The GUI provides quick search-and-copy access on macOS."
+    "longDescription": "klef stores API keys in the OS keychain. The GUI provides quick search-and-copy access on macOS via a menu bar app."
   }
 }
