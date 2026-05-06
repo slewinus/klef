@@ -1151,9 +1151,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "dirs",
- "fs4",
- "gethostname",
- "keyring",
+ "klef-core",
  "predicates",
  "regex",
  "rpassword",
@@ -1163,6 +1161,24 @@ dependencies = [
  "thiserror 2.0.18",
  "time",
  "walkdir",
+ "zeroize",
+]
+
+[[package]]
+name = "klef-core"
+version = "0.1.0"
+dependencies = [
+ "age",
+ "dirs",
+ "fs4",
+ "gethostname",
+ "keyring",
+ "rpassword",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "time",
  "zeroize",
 ]
 
