@@ -178,9 +178,9 @@ Nouveautés v0.3 :
 - Complétion dynamique des noms de clés sur **bash + fish** (zsh shipped en v0.2)
 - Doc IA-friendly (`llms.txt`) suivant la convention [llmstxt.org](https://llmstxt.org/)
 
-- **Plateformes supportées** : macOS (Keychain natif) + Linux desktop (Secret Service via gnome-keyring / KWallet).
-- **Hors-scope v0.3** : Linux headless / WSL sans desktop, Windows, synchro multi-machines, GUI.
-- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones). v0.4+ : [#12](https://github.com/slewinus/klef/issues/12) backend chiffré headless, [#24](https://github.com/slewinus/klef/issues/24) MCP server, [#18](https://github.com/slewinus/klef/issues/18) GUI.
+- **Plateformes supportées** : macOS (Keychain natif) + Linux desktop (Secret Service via gnome-keyring / KWallet) + Linux headless / CI / Docker via `--backend age:./vault.age` (closes [#12](https://github.com/slewinus/klef/issues/12)).
+- **Hors-scope v0.3** : Windows, synchro multi-machines, GUI.
+- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones). v0.4+ : [#24](https://github.com/slewinus/klef/issues/24) MCP server, [#18](https://github.com/slewinus/klef/issues/18) GUI.
 
 ## Licence
 

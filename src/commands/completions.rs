@@ -82,33 +82,19 @@ fn inject_bash_dynamic_names(script: &str) -> String {
     );
 
     // (clap_complete opts line, cleaned opts, if-block replacement)
+    // clap_complete inserts global flags (--backend) into each subcommand's opts.
+    #[rustfmt::skip]
     let patches: &[(&str, &str, &str)] = &[
-        (r#"opts="-h --help <NAME>""#, r#"opts="-h --help""#, n_if),
+        (r#"opts="-h --backend --help <NAME>""#,   r#"opts="-h --backend --help""#,   n_if),
+        (r#"opts="-h --yes --backend --help <NAME>""#, r#"opts="-h --yes --backend --help""#, n_if),
         (
-            r#"opts="-h --yes --help <NAME>""#,
-            r#"opts="-h --yes --help""#,
+            r#"opts="-h --note --as --value-from-file --tag --clear-tags --note-edit --backend --help <NAME>""#,
+            r#"opts="-h --note --as --value-from-file --tag --clear-tags --note-edit --backend --help""#,
             n_if,
         ),
-        (
-            r#"opts="-h --note --as --value-from-file --help <NAME>""#,
-            r#"opts="-h --note --as --value-from-file --help""#,
-            n_if,
-        ),
-        (
-            r#"opts="-h --help <NAME> <NOTE>""#,
-            r#"opts="-h --help""#,
-            n_if,
-        ),
-        (
-            r#"opts="-h --help <OLD> <NEW>""#,
-            r#"opts="-h --help""#,
-            rn_if,
-        ),
-        (
-            r#"opts="-h --format --help [NAMES]...""#,
-            r#"opts="-h --format --help""#,
-            n_if,
-        ),
+        (r#"opts="-h --backend --help <NAME> <NOTE>""#, r#"opts="-h --backend --help""#, n_if),
+        (r#"opts="-h --backend --help <OLD> <NEW>""#,  r#"opts="-h --backend --help""#, rn_if),
+        (r#"opts="-h --format --backend --help [NAMES]...""#, r#"opts="-h --format --backend --help""#, n_if),
     ];
 
     let mut out = String::with_capacity(script.len() + BASH_DYNAMIC_HEADER.len() + 1024);
@@ -245,9 +231,10 @@ mod tests {
 
     #[test]
     fn bash_inject_rewrites_name_subcommand_opts() {
+        // clap_complete now includes global flags (--backend) in each subcommand opts.
         let input = concat!(
             "        klef__subcmd__get)\n",
-            "            opts=\"-h --help <NAME>\"\n",
+            "            opts=\"-h --backend --help <NAME>\"\n",
             "            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then\n",
             "                COMPREPLY=( $(compgen -W \"${opts}\" -- \"${cur}\") )\n",
             "                return 0\n",
@@ -263,9 +250,10 @@ mod tests {
 
     #[test]
     fn bash_inject_rename_only_patches_old_position() {
+        // clap_complete now includes global flags (--backend) in each subcommand opts.
         let input = concat!(
             "        klef__subcmd__rename)\n",
-            "            opts=\"-h --help <OLD> <NEW>\"\n",
+            "            opts=\"-h --backend --help <OLD> <NEW>\"\n",
             "            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then\n",
             "                COMPREPLY=( $(compgen -W \"${opts}\" -- \"${cur}\") )\n",
             "                return 0\n",

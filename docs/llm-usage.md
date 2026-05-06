@@ -24,6 +24,7 @@ This document teaches an LLM agent (Claude Code, Cursor, ChatGPT) how to drive `
 | "Pull a key into my shell" | `eval $(klef export <name>)` |
 | "Diagnostics: how is klef configured?" | `klef status` (or `klef status --format json` for parsing) |
 | "Add a multi-line secret (e.g. a PEM)" | `klef add <name> --value-from-file path/to/cert.pem` |
+| "Use klef in a Docker container or CI" | `KLEF_PASSPHRASE=secret klef --backend age:./vault.age <cmd>` |
 
 ## Exit codes (parse them programmatically)
 
