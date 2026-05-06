@@ -7,8 +7,46 @@ use plan::{DEFAULT_INCLUDE, build_plan, print_plan, walk};
 use std::io::{BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
+const DEFAULT_SKIP_PATTERNS: &[&str] = &[
+    r"^PORT$",
+    r"^.+_PORT$",
+    r"^DEBUG$",
+    r"^NODE_ENV$",
+    r"^.+_TIMEOUT$",
+    r"^.+_INTERVAL$",
+    r"^COOKIE_.+$",
+    r"^HOST$",
+    r"^HOSTNAME$",
+    r"^.+_HOST$",
+    r"^.+_BIND$",
+    r"^BIND_HOST$",
+    r"^WORKER_MODE$",
+    r"^ENVIRONMENT$",
+];
+
+fn compile_skip_patterns(
+    user: &[String],
+    use_defaults: bool,
+) -> Result<Vec<regex::Regex>, KlefError> {
+    let mut all: Vec<&str> = Vec::new();
+    if use_defaults {
+        all.extend(DEFAULT_SKIP_PATTERNS.iter().copied());
+    }
+    for pat in user {
+        all.push(pat.as_str());
+    }
+    let mut compiled = Vec::with_capacity(all.len());
+    for pat in &all {
+        let re = regex::Regex::new(pat)
+            .map_err(|e| KlefError::InvalidSkipPattern(format!("{pat}: {e}")))?;
+        compiled.push(re);
+    }
+    Ok(compiled)
+}
+
 /// # Errors
 /// Returns an error if the index can't be written to.
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     store: &Store,
     root: Option<&Path>,
@@ -17,6 +55,8 @@ pub fn run(
     dry_run: bool,
     yes: bool,
     on_conflict: ConflictMode,
+    skip_pattern: &[String],
+    skip_defaults: bool,
 ) -> Result<(), KlefError> {
     let root = root.map_or_else(
         || std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
@@ -29,7 +69,8 @@ pub fn run(
     };
 
     let env_files = walk(&root, depth, &patterns);
-    let discovered = build_plan(&env_files, on_conflict);
+    let skip_patterns = compile_skip_patterns(skip_pattern, skip_defaults)?;
+    let discovered = build_plan(&env_files, on_conflict, &skip_patterns);
 
     print_plan(&discovered);
 

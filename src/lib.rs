@@ -58,6 +58,8 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
             dry_run,
             yes,
             on_conflict,
+            skip_pattern,
+            skip_defaults,
         } => commands::discover::run(
             &store,
             root.as_deref(),
@@ -66,6 +68,8 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
             dry_run,
             yes,
             on_conflict,
+            &skip_pattern,
+            skip_defaults,
         ),
         Command::Names => commands::names::run(&store),
     }

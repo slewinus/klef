@@ -152,3 +152,78 @@ fn discover_prints_no_files_message_on_empty_root() {
         .success()
         .stdout(pstr::contains("no .env files found"));
 }
+
+#[test]
+fn discover_skip_pattern_excludes_matches() {
+    let d = TempDir::new().unwrap();
+    let scan_root = d.path().join("projects");
+    fs::create_dir(&scan_root).unwrap();
+    let proj = scan_root.join("alpha");
+    fs::create_dir(&proj).unwrap();
+    fs::write(
+        proj.join(".env"),
+        "STRIPE_API_KEY=secret\nPORT=3000\nDB_NAME=app\n",
+    )
+    .unwrap();
+
+    klef(d.path())
+        .arg("discover")
+        .arg("--root")
+        .arg(&scan_root)
+        .arg("--skip-pattern")
+        .arg(r"^(PORT|DB_NAME)$")
+        .arg("--yes")
+        .assert()
+        .success()
+        .stdout(pstr::contains("STRIPE_API_KEY → klef:stripe-api-key"))
+        .stdout(pstr::contains("2 skipped by pattern"))
+        .stdout(predicates::function::function(|out: &str| {
+            !out.contains("klef:port") && !out.contains("klef:db-name")
+        }));
+}
+
+#[test]
+fn discover_skip_defaults_excludes_common_config() {
+    let d = TempDir::new().unwrap();
+    let scan_root = d.path().join("projects");
+    fs::create_dir(&scan_root).unwrap();
+    let proj = scan_root.join("alpha");
+    fs::create_dir(&proj).unwrap();
+    fs::write(
+        proj.join(".env"),
+        "STRIPE_API_KEY=secret\nPORT=3000\nDB_PORT=5432\nNODE_ENV=production\nDEBUG=true\n",
+    )
+    .unwrap();
+
+    klef(d.path())
+        .arg("discover")
+        .arg("--root")
+        .arg(&scan_root)
+        .arg("--skip-defaults")
+        .arg("--yes")
+        .assert()
+        .success()
+        .stdout(pstr::contains("STRIPE_API_KEY → klef:stripe-api-key"))
+        .stdout(pstr::contains("4 skipped by pattern"))
+        .stdout(predicates::function::function(|out: &str| {
+            !out.contains("klef:port") && !out.contains("klef:db-port")
+        }));
+}
+
+#[test]
+fn discover_invalid_skip_pattern_returns_error() {
+    let d = TempDir::new().unwrap();
+    let scan_root = d.path().join("projects");
+    fs::create_dir(&scan_root).unwrap();
+
+    klef(d.path())
+        .arg("discover")
+        .arg("--root")
+        .arg(&scan_root)
+        .arg("--skip-pattern")
+        .arg("[unbalanced")
+        .arg("--yes")
+        .assert()
+        .failure()
+        .stderr(pstr::contains("invalid skip pattern"));
+}

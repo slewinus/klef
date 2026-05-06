@@ -29,6 +29,8 @@ pub enum KlefError {
         "broken reference: {var}=klef:{key} - key '{key}' not found. Add it with: klef add {key}"
     )]
     BrokenReference { var: String, key: String },
+    #[error("invalid skip pattern '{0}': must be a valid regex")]
+    InvalidSkipPattern(String),
 }
 
 impl KlefError {

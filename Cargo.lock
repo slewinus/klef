@@ -789,6 +789,7 @@ dependencies = [
  "dirs",
  "keyring",
  "predicates",
+ "regex",
  "rpassword",
  "serde",
  "serde_json",

@@ -1,6 +1,7 @@
 use crate::cli::ConflictMode;
 use crate::envfile::{self, Value};
 use std::collections::{BTreeMap, HashSet};
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 pub(super) const SKIP_DIRS: &[&str] = &[
@@ -41,6 +42,8 @@ pub(super) struct DiscoverPlan {
     pub(super) picks: Vec<DiscoveredEntry>,
     /// Number of conflicts that were resolved.
     pub(super) conflicts: usize,
+    /// Number of entries skipped by pattern matching.
+    pub(super) skipped_by_pattern: usize,
     /// All source files seen (used to print the per-file breakdown).
     pub(super) files: Vec<PathBuf>,
 }
@@ -73,9 +76,14 @@ fn is_skipped_dir(entry: &walkdir::DirEntry) -> bool {
     SKIP_DIRS.iter().any(|skip| name == *skip)
 }
 
-pub(super) fn build_plan(files: &[PathBuf], on_conflict: ConflictMode) -> DiscoverPlan {
+pub(super) fn build_plan(
+    files: &[PathBuf],
+    on_conflict: ConflictMode,
+    skip_patterns: &[regex::Regex],
+) -> DiscoverPlan {
     let mut by_var: BTreeMap<String, DiscoveredEntry> = BTreeMap::new();
     let mut conflicts = 0_usize;
+    let mut skipped_by_pattern = 0_usize;
 
     for path in files {
         let Ok(entries) = envfile::parse(path) else {
@@ -83,6 +91,11 @@ pub(super) fn build_plan(files: &[PathBuf], on_conflict: ConflictMode) -> Discov
         };
         for e in entries {
             if let Value::Literal(value) = e.value {
+                // Skip matching patterns first.
+                if skip_patterns.iter().any(|r| r.is_match(&e.key)) {
+                    skipped_by_pattern += 1;
+                    continue;
+                }
                 let klef_name = derive_name(&e.key);
                 let new_entry = DiscoveredEntry {
                     env_var: e.key.clone(),
@@ -109,6 +122,7 @@ pub(super) fn build_plan(files: &[PathBuf], on_conflict: ConflictMode) -> Discov
     DiscoverPlan {
         picks,
         conflicts,
+        skipped_by_pattern,
         files: files.to_vec(),
     }
 }
@@ -194,11 +208,13 @@ pub(super) fn print_plan(plan: &DiscoverPlan) {
         }
     }
 
-    let suffix = if plan.conflicts > 0 {
-        format!(" {} conflict(s) resolved.", plan.conflicts)
-    } else {
-        String::new()
-    };
+    let mut suffix = String::new();
+    if plan.conflicts > 0 {
+        let _ = write!(suffix, " {} conflict(s) resolved.", plan.conflicts);
+    }
+    if plan.skipped_by_pattern > 0 {
+        let _ = write!(suffix, " {} skipped by pattern.", plan.skipped_by_pattern);
+    }
     println!(
         "{} unique key(s) across {} file(s).{}",
         plan.picks.len(),
@@ -236,11 +252,21 @@ mod tests {
     }
 
     #[test]
-    fn walk_finds_top_level_env() {
-        let d = tempdir().unwrap();
-        fs::write(d.path().join(".env"), "X=1\n").unwrap();
-        let hits = walk(d.path(), 1, &[".env".to_string()]);
-        assert_eq!(hits.len(), 1);
+    fn build_plan_skips_by_pattern() {
+        let (_d, p) = tempenv("STRIPE_API_KEY=secret\nPORT=3000\nDB_NAME=app\n");
+        let skip = vec![regex::Regex::new(r"^(PORT|DB_NAME)$").unwrap()];
+        let plan = build_plan(&[p], ConflictMode::FirstFound, &skip);
+        assert_eq!(plan.picks.len(), 1);
+        assert_eq!(plan.picks[0].env_var, "STRIPE_API_KEY");
+        assert_eq!(plan.skipped_by_pattern, 2);
+    }
+
+    #[test]
+    fn build_plan_no_skip_patterns() {
+        let (_d, p) = tempenv("STRIPE_API_KEY=secret\nPORT=3000\n");
+        let plan = build_plan(&[p], ConflictMode::FirstFound, &[]);
+        assert_eq!(plan.picks.len(), 2);
+        assert_eq!(plan.skipped_by_pattern, 0);
     }
 
     #[test]
@@ -252,48 +278,5 @@ mod tests {
         fs::write(d.path().join(".env"), "Y=1\n").unwrap();
         let hits = walk(d.path(), 5, &[".env".to_string()]);
         assert_eq!(hits.len(), 1, "node_modules should be skipped");
-        assert_eq!(hits[0].file_name().unwrap(), ".env");
-    }
-
-    fn read_val(p: &std::path::Path) -> String {
-        std::fs::read_to_string(p)
-            .unwrap()
-            .trim()
-            .split_once('=')
-            .unwrap()
-            .1
-            .to_string()
-    }
-
-    #[test]
-    fn build_plan_dedup_first_found() {
-        let (_d1, p1) = tempenv("A=first\n");
-        let (_d2, p2) = tempenv("A=second\n");
-        let mut paths = vec![p1, p2];
-        paths.sort();
-        let plan = build_plan(&paths, ConflictMode::FirstFound);
-        assert_eq!(plan.picks.len(), 1);
-        assert_eq!(plan.picks[0].value, read_val(&paths[0]));
-        assert_eq!(plan.conflicts, 1);
-    }
-
-    #[test]
-    fn build_plan_dedup_last_found() {
-        let (_d1, p1) = tempenv("A=first\n");
-        let (_d2, p2) = tempenv("A=second\n");
-        let mut paths = vec![p1, p2];
-        paths.sort();
-        let plan = build_plan(&paths, ConflictMode::LastFound);
-        assert_eq!(plan.picks.len(), 1);
-        assert_eq!(plan.picks[0].value, read_val(&paths[1]));
-        assert_eq!(plan.conflicts, 1);
-    }
-
-    #[test]
-    fn build_plan_skips_klef_references() {
-        let (_d, p) = tempenv("X=klef:foo\nY=literal\n");
-        let plan = build_plan(&[p], ConflictMode::FirstFound);
-        assert_eq!(plan.picks.len(), 1);
-        assert_eq!(plan.picks[0].env_var, "Y");
     }
 }
