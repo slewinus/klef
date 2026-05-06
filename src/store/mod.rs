@@ -86,8 +86,13 @@ impl Store {
         if !data.keys.contains_key(name) {
             return Err(KlefError::KeyNotFound(name.to_string()));
         }
-        // Backend delete is best-effort (key may already be gone manually).
-        let _ = self.backend.remove(name);
+        // Tolerate `KeyNotFound` (the secret may already be gone — manual
+        // deletion, concurrent rm, etc.) but propagate any other backend error
+        // so callers don't believe the secret is gone when it isn't.
+        match self.backend.remove(name) {
+            Ok(()) | Err(KlefError::KeyNotFound(_)) => {}
+            Err(e) => return Err(e),
+        }
         data.keys.remove(name);
         self.index.save(&data)?;
         Ok(())
@@ -268,33 +273,11 @@ mod tests {
     }
 
     #[test]
-    fn rename_moves_value_and_meta() {
-        let (s, _d) = make_store();
-        s.add("a", "v", None, None, false).unwrap();
-        s.rename("a", "b").unwrap();
-        assert!(matches!(s.get_value("a"), Err(KlefError::KeyNotFound(_))));
-        assert_eq!(s.get_value("b").unwrap(), "v");
-    }
-
-    #[test]
     fn invalid_name_rejected() {
         let (s, _d) = make_store();
         let r = s.add("has space", "v", None, None, false);
         assert!(matches!(r, Err(KlefError::InvalidKeyName(_))));
     }
-
-    #[test]
-    fn remove_clears_both_layers() {
-        let (s, _d) = make_store();
-        s.add("k", "v", None, None, false).unwrap();
-        s.remove("k").unwrap();
-        assert!(matches!(s.get_value("k"), Err(KlefError::KeyNotFound(_))));
-        assert!(s.list().unwrap().is_empty());
-    }
-    #[test]
-    fn orphan_index_entries_finds_index_only_keys() {
-        let (s, _d) = make_store();
-        s.add("a", "v", None, None, false).unwrap();
-        assert!(s.orphan_index_entries().unwrap().is_empty());
-    }
+    // rename, remove, orphan tests + remove error semantics live in
+    // tests/store_remove.rs (file-cap discipline).
 }
