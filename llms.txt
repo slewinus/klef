@@ -8,7 +8,6 @@ klef is meant to replace the pattern of pasting plaintext API keys into `.env` f
 
 - [README](README.md): user-facing overview, install, demo, command table.
 - [Quickstart example](examples/quickstart/): minimal `.env` + consumer script proving the `klef run` flow end-to-end.
-- [Design spec](docs/design/2026-05-05-mvp-design.md): architecture, decisions, error contracts.
 - [LLM usage guide](docs/llm-usage.md): concrete prompt-style examples for LLM agents.
 - [Changelog](CHANGELOG.md): version history.
 - [Release notes](docs/release.md): how to ship a new klef version.
