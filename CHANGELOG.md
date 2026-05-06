@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-06
+
 ### Added
 
-- `klef edit <name> --note-edit` opens `$VISUAL` (or `$EDITOR`) with the current note pre-filled, saves the trimmed file content as the new note. Falls back to a single-line stdin prompt when neither env var is set. Empty result clears the note (#14).
+- `klef discover [--root PATH] [--depth N] [--include PATTERN]...` walks the filesystem, finds every `.env`, builds a deduplicated import plan, and bulk-adds with confirmation. Skips `node_modules`, `.git`, `target`, `.venv`, etc. Conflict modes: `--on-conflict first-found|last-found` (#21).
+- `klef discover --skip-pattern <REGEX>` (repeatable) and `--skip-defaults` (built-in list: PORT, NODE_ENV, *_HOST, *_TIMEOUT, etc.) to exclude non-secret config from the import plan (#37).
+- `klef backup <out.age> [--recipient KEY]...` and `klef restore <in.age> [--force]` — encrypted full-vault dump and reconstruction via [age](https://github.com/FiloSottile/age). Bundle includes values, env-var names, notes, tags, and timestamps. Restore is 3-phase atomic (preflight → backend writes → index commit); klef's view of the vault is atomic across restore. Plaintext is held in zeroize buffers from serialization through encryption. Strict schema (`#[serde(deny_unknown_fields)]`) on read (#22).
+- Tags for organizing keys: `klef add --tag T1 --tag T2`, `klef edit --tag T --clear-tags`, `klef list --tag T` (composes with `--filter`), `klef list --verbose` adds a `TAGS` column, `klef show` displays the tags line, new `klef tags` command lists all tags with key counts. Tags sorted and deduped on write (#36).
+- `klef edit <name> --note-edit` opens `$VISUAL` (or `$EDITOR`) with the current note pre-filled, saves the trimmed file content as the new note. Falls back to a single-line stdin prompt. Empty result clears the note (#14).
+- Bash and fish dynamic completion of stored key names (extends the zsh implementation from v0.2.0). `klef show str<Tab>` now suggests `stripe` in all three shells (#28 follow-up).
+- AI-readable documentation: `llms.txt` (navigation index), `llms-full.txt` (one-shot LLM context, auto-generated via `scripts/regenerate-llms-full.sh`), `docs/llm-usage.md` (decision tables, exit codes, JSON output reference) — follows the [llmstxt.org](https://llmstxt.org/) convention (#33).
+- README hero blockquote with the elevator pitch, comparison table vs 1Password CLI / doppler / infisical / direnv, asciinema demo cast embedded ([asciicast](https://asciinema.org/a/5z9zCmNWd1igb3MH)), and `cargo install klef` install snippet (klef now on [crates.io](https://crates.io/crates/klef)) (#38, #39, #41).
+
+### Fixed
+
+- `Store::remove` previously swallowed all backend errors with `let _ = self.backend.remove(name);`, so a Keychain permission denial silently appeared as a successful delete. Now `KeyNotFound` is tolerated (the legitimate "secret already gone manually" case) but any other backend error propagates and the index is NOT modified.
 
 ## [0.2.0] - 2026-05-06
 
@@ -54,6 +67,7 @@ First public release. Local-first CLI vault for API keys.
 - `keyring` crate compiled with explicit `apple-native` + `sync-secret-service` + `crypto-rust` features (the default crates.io build ships zero backends and silently no-ops).
 - No telemetry. No cloud. No external network calls.
 
-[Unreleased]: https://github.com/slewinus/klef/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/slewinus/klef/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/slewinus/klef/releases/tag/v0.3.0
 [0.2.0]: https://github.com/slewinus/klef/releases/tag/v0.2.0
 [0.1.0]: https://github.com/slewinus/klef/releases/tag/v0.1.0

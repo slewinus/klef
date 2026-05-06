@@ -1,6 +1,6 @@
 [package]
 name = "klef"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Local-first vault for API keys and secrets, backed by the OS keychain."
 license = "MIT"

@@ -168,21 +168,19 @@ Les agents Claude Code, Cursor, ChatGPT peuvent ingérer ces fichiers et savoir 
 
 ## Statut
 
-✅ **v0.2.0** taggé (2026-05-06) — distribution prête : 13 commandes, binaires pré-compilés pour macOS (Intel + Apple Silicon) + Linux (x86_64 + ARM), formule Homebrew, complétion zsh dynamique des noms de clés.
+✅ **v0.3.0** taggé (2026-05-06) — release majeure avec onboarding bulk + backup chiffré + organisation par tags. 14 commandes, distribution complète (cargo, Homebrew, binaires pré-compilés).
 
-Highlights ajoutés depuis v0.1 :
-- `klef import .env` pour onboarder un projet existant en une commande
-- `klef status` pour le diagnostic
-- `klef set-note` raccourci
-- `klef list --verbose` (date d'ajout) + `--filter` (recherche)
-- `--value-from-file` pour les secrets multi-lignes (PEM, certs, JSON)
-- Hints actionnables quand le Keychain n'est pas disponible (Linux + macOS)
-- Alias `klef remove` pour `klef rm`
-- Complétion zsh dynamique : `klef show str<Tab>` → `stripe`
+Nouveautés v0.3 :
+- `klef discover` scanne récursivement et propose un import bulk de tous les `.env` trouvés (avec `--skip-defaults` pour exclure le config non-secret)
+- `klef backup vault.age` + `klef restore` — dump chiffré complet via [age](https://github.com/FiloSottile/age), restore atomique 3-phases
+- **Tags** pour organiser : `klef add --tag billing --tag prod`, `klef list --tag ai`, `klef tags` pour le sommaire
+- `klef edit --note-edit` ouvre `$EDITOR` pour des notes multi-lignes
+- Complétion dynamique des noms de clés sur **bash + fish** (zsh shipped en v0.2)
+- Doc IA-friendly (`llms.txt`) suivant la convention [llmstxt.org](https://llmstxt.org/)
 
 - **Plateformes supportées** : macOS (Keychain natif) + Linux desktop (Secret Service via gnome-keyring / KWallet).
-- **Hors-scope v0.2** : Linux headless / WSL sans desktop, Windows, synchro multi-machines, GUI.
-- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones). v0.3+ trackée sous le [headless umbrella #26](https://github.com/slewinus/klef/issues/26), backend chiffré [#12](https://github.com/slewinus/klef/issues/12), MCP server [#24](https://github.com/slewinus/klef/issues/24), GUI [#18](https://github.com/slewinus/klef/issues/18).
+- **Hors-scope v0.3** : Linux headless / WSL sans desktop, Windows, synchro multi-machines, GUI.
+- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones). v0.4+ : [#12](https://github.com/slewinus/klef/issues/12) backend chiffré headless, [#24](https://github.com/slewinus/klef/issues/24) MCP server, [#18](https://github.com/slewinus/klef/issues/18) GUI.
 
 ## Licence
 
