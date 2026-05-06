@@ -45,3 +45,40 @@ xattr -d com.apple.quarantine ~/.local/bin/klef
 ```
 
 A real codesigning + notarization pipeline is the next big distribution improvement and lives in a future issue.
+
+## Homebrew (one-time setup)
+
+The `slewinus/homebrew-tap` repo doesn't exist yet. To set it up the first time:
+
+1. Create a new public GitHub repo named `homebrew-tap` under your account (`slewinus/homebrew-tap`).
+2. From that repo's local clone, create the directory layout:
+   ```
+   homebrew-tap/
+   └── Formula/
+       └── klef.rb
+   ```
+3. Tag a release of klef (e.g. `v0.2.0`). The `release.yml` workflow builds the four tarballs and attaches them to the GitHub Release.
+4. From this klef repo, run:
+   ```bash
+   scripts/update-homebrew-formula.sh v0.2.0 /path/to/homebrew-tap/Formula/klef.rb
+   ```
+5. Commit and push the populated formula to the tap repo.
+6. End-users can now install:
+   ```bash
+   brew tap slewinus/tap
+   brew install klef
+   ```
+
+## Homebrew (subsequent releases)
+
+After step 1-2 are done once, releases just need:
+
+1. Tag the new version (`vX.Y.Z`).
+2. Wait for the release workflow to publish binaries.
+3. Run the update script:
+   ```bash
+   scripts/update-homebrew-formula.sh vX.Y.Z ~/code/homebrew-tap/Formula/klef.rb
+   ```
+4. Commit and push the bumped formula.
+
+A future enhancement (out of scope for v0.2) automates the formula bump via a workflow step that opens a PR on the tap repo on every release. See [#10](https://github.com/slewinus/klef/issues/10) for the tracking discussion.
