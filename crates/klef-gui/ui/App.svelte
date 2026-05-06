@@ -5,24 +5,24 @@
     deleteKey,
     getKeyValue,
     listKeys,
+    previewDotenvImport,
     recordAccess,
+    type DotenvPlan,
   } from "./lib/api";
   import { filterByProject, filterKeys, sortByLastUsed } from "./lib/filter";
   import { isNavKey, nextIndexFor } from "./lib/keyboardNav";
   import {
     hideCurrentPopover,
     isKeychainDenied,
+    onDotenvDropped,
     setupPopoverLifecycle,
   } from "./lib/popoverLifecycle";
   import type { KeyDto } from "./lib/types";
-  import AddKeyModal from "./lib/AddKeyModal.svelte";
-  import ConfirmDialog from "./lib/ConfirmDialog.svelte";
-  import EditKeyModal from "./lib/EditKeyModal.svelte";
   import KeychainAccessHelp from "./lib/KeychainAccessHelp.svelte";
+  import Modals from "./lib/Modals.svelte";
   import KeyRow from "./lib/KeyRow.svelte";
   import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
-  import SettingsModal from "./lib/SettingsModal.svelte";
   import { loadSettings } from "./lib/settings";
   import Toast from "./lib/Toast.svelte";
 
@@ -41,6 +41,7 @@
   let showSettings = $state(false);
   let editTarget = $state<KeyDto | null>(null);
   let pendingDelete = $state<KeyDto | null>(null);
+  let dotenvPlan = $state<DotenvPlan | null>(null);
 
   // Pipeline: sort by recency, then project filter, then search query.
   // Sort runs first so the recency order is preserved through filtering.
@@ -103,8 +104,26 @@
 
   // Skip our key handlers when a modal is open — modals own Escape etc.
   let anyModalOpen = $derived(
-    showAddModal || showSettings || pendingDelete !== null || editTarget !== null,
+    showAddModal ||
+      showSettings ||
+      pendingDelete !== null ||
+      editTarget !== null ||
+      dotenvPlan !== null,
   );
+
+  async function handleDotenvDropped(path: string) {
+    try {
+      dotenvPlan = await previewDotenvImport(path);
+    } catch (e) {
+      showToast(`import error: ${e}`);
+    }
+  }
+
+  async function handleDotenvImported(count: number) {
+    dotenvPlan = null;
+    showToast(`${count} keys imported`);
+    keys = await listKeys();
+  }
 
   // Reset selection when the visible list changes (search/project filter).
   $effect(() => {
@@ -150,11 +169,15 @@
 
   onMount(async () => {
     refresh();
-    const teardown = await setupPopoverLifecycle(
+    const teardownLife = await setupPopoverLifecycle(
       () => refresh(),
       () => anyModalOpen,
     );
-    return teardown;
+    const teardownDrop = await onDotenvDropped(handleDotenvDropped);
+    return () => {
+      teardownLife();
+      teardownDrop();
+    };
   });
 </script>
 
@@ -223,54 +246,27 @@
 
 <Toast message={toast} />
 
-{#if showAddModal}
-  <AddKeyModal
-    onClose={() => (showAddModal = false)}
-    onAdded={handleAdded}
-  />
-{/if}
-
-{#if editTarget}
-  <EditKeyModal
-    target={editTarget}
-    onClose={() => (editTarget = null)}
-    onSaved={handleSaved}
-  />
-{/if}
-
-{#if pendingDelete}
-  <ConfirmDialog
-    title="Delete key"
-    message="Permanently delete “{pendingDelete.name}”? This removes the value from the Keychain and the index entry."
-    confirmLabel="Delete"
-    danger
-    onConfirm={handleDeleteConfirm}
-    onCancel={() => (pendingDelete = null)}
-  />
-{/if}
-
-{#if showSettings}
-  <SettingsModal onClose={() => (showSettings = false)} />
-{/if}
+<Modals
+  {showAddModal}
+  {showSettings}
+  {editTarget}
+  {pendingDelete}
+  {dotenvPlan}
+  onAddClose={() => (showAddModal = false)}
+  onAddDone={handleAdded}
+  onEditClose={() => (editTarget = null)}
+  onEditDone={handleSaved}
+  onSettingsClose={() => (showSettings = false)}
+  onDeleteCancel={() => (pendingDelete = null)}
+  onDeleteConfirm={handleDeleteConfirm}
+  onDotenvClose={() => (dotenvPlan = null)}
+  onDotenvDone={handleDotenvImported}
+/>
 
 <style>
-  header {
-    padding: 10px 12px 8px;
-    background: #fff;
-    border-bottom: 1px solid #d2d2d7;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .title-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .title {
-    font-weight: 600;
-    font-size: 13px;
-  }
+  header { padding: 10px 12px 8px; background: #fff; border-bottom: 1px solid #d2d2d7; display: flex; flex-direction: column; gap: 6px; }
+  .title-row { display: flex; align-items: center; justify-content: space-between; }
+  .title { font-weight: 600; font-size: 13px; }
   .header-actions { display: flex; gap: 4px; }
   .hdr-btn {
     width: 22px; height: 22px; padding: 0;

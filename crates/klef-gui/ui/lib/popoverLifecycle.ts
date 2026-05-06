@@ -52,3 +52,25 @@ export function isKeychainDenied(err: string): boolean {
     e.includes("user did not consent")
   );
 }
+
+/**
+ * Subscribe to file-drop events on the current webview window. Returns a
+ * teardown function. The callback receives only `.env` paths — other files
+ * are silently ignored.
+ */
+export async function onDotenvDropped(
+  cb: (path: string) => void,
+): Promise<() => void> {
+  const win = getCurrentWebviewWindow();
+  const unlisten = await win.onDragDropEvent((evt) => {
+    if (evt.payload.type !== "drop") return;
+    for (const path of evt.payload.paths) {
+      const lower = path.toLowerCase();
+      if (lower.endsWith(".env") || lower.includes("/.env")) {
+        cb(path);
+        return;
+      }
+    }
+  });
+  return unlisten;
+}

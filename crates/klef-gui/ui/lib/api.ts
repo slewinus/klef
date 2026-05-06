@@ -71,3 +71,29 @@ export function editKey(input: EditKeyInput): Promise<void> {
 export function copyToClipboard(value: string): Promise<void> {
   return copyWithAutoClear(value, autoClearMs(loadSettings()));
 }
+
+export interface DotenvPlanItem {
+  env_var: string;
+  klef_name: string;
+  redacted_value: string;
+  value: string;
+  /** "new" | "conflict" | "ref" | "empty" */
+  status: string;
+}
+
+export interface DotenvPlan {
+  suggested_project: string;
+  items: DotenvPlanItem[];
+  source_path: string;
+}
+
+export function previewDotenvImport(path: string): Promise<DotenvPlan> {
+  return invoke<DotenvPlan>("preview_dotenv_import", { path });
+}
+
+export function applyDotenvImport(
+  items: DotenvPlanItem[],
+  project: string,
+): Promise<number> {
+  return invoke<number>("apply_dotenv_import", { items, project });
+}
