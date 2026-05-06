@@ -55,6 +55,25 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_positioner::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    use tauri_plugin_global_shortcut::ShortcutState;
+                    // Fire on key release so we don't double-fire on the
+                    // user holding ⌘⇧K. macOS sends repeat events for held
+                    // keys; release-only filters those out.
+                    if event.state == ShortcutState::Released
+                        && shortcut.matches(
+                            tauri_plugin_global_shortcut::Modifiers::SUPER
+                                | tauri_plugin_global_shortcut::Modifiers::SHIFT,
+                            tauri_plugin_global_shortcut::Code::KeyK,
+                        )
+                    {
+                        toggle_window(app);
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             eprintln!("klef-gui: setup start");
 
@@ -96,11 +115,26 @@ fn main() {
                 .build(app)?;
             eprintln!("klef-gui: tray ready");
 
+            // Register the global hotkey ⌘⇧K. The handler is wired in the
+            // plugin builder above; here we just declare what to listen for.
+            // Using `Modifiers::SUPER` for Cmd to keep the same code path on
+            // Linux/Windows when we eventually port (`SUPER` is Cmd on macOS,
+            // Win/Meta elsewhere).
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt as _, Modifiers};
+                let shortcut = tauri_plugin_global_shortcut::Shortcut::new(
+                    Some(Modifiers::SUPER | Modifiers::SHIFT),
+                    Code::KeyK,
+                );
+                app.global_shortcut().register(shortcut)?;
+                eprintln!("klef-gui: ⌘⇧K registered");
+            }
+
             // Hide the Dock icon AFTER the tray is up, so we never end up in
             // a state where the app is dock-less with no menu bar entry.
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            eprintln!("klef-gui: setup done — click the tray icon to open");
+            eprintln!("klef-gui: setup done — click the tray icon or ⌘⇧K");
 
             Ok(())
         })
