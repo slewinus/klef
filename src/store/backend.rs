@@ -26,6 +26,22 @@ pub trait Backend: Send + Sync {
     ///
     /// Returns `KeyNotFound` if the key does not exist.
     fn remove(&self, name: &str) -> Result<(), KlefError>;
+
+    /// Enumerate every key the backend currently stores, if the backend
+    /// supports enumeration. Returns `None` for backends that cannot list
+    /// (e.g. the macOS / Linux Secret Service via the `keyring` crate).
+    ///
+    /// Used by `status` to detect the reverse desync direction:
+    /// secrets that exist in the backend but are missing from the index
+    /// (the failure mode of a partial `add` whose index write fails).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if enumeration is supported but fails (e.g. corrupt
+    /// vault file).
+    fn list_names(&self) -> Result<Option<Vec<String>>, KlefError> {
+        Ok(None)
+    }
 }
 
 #[derive(Default)]
@@ -69,6 +85,10 @@ impl Backend for MemoryBackend {
                 .ok_or_else(|| KlefError::KeyNotFound(name.to_string()))?;
         }
         Ok(())
+    }
+
+    fn list_names(&self) -> Result<Option<Vec<String>>, KlefError> {
+        Ok(Some(self.inner.lock().unwrap().keys().cloned().collect()))
     }
 }
 

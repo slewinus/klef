@@ -247,7 +247,8 @@ fn status_text_output_healthy() {
         .assert()
         .success()
         .stdout(predicates::str::contains("keys         1"))
-        .stdout(predicates::str::contains("desync       none"));
+        .stdout(predicates::str::contains("desync (i→b) none"))
+        .stdout(predicates::str::contains("desync (b→i) none"));
 }
 
 #[test]
