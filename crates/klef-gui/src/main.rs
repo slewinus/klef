@@ -56,23 +56,25 @@ fn main() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_positioner::init())
         .setup(|app| {
+            eprintln!("klef-gui: setup start");
+
             // Build the Store once and share it via Tauri-managed state.
             let store = build_store(None).map_err(|e| {
                 Box::<dyn std::error::Error>::from(format!("failed to build Store: {e}"))
             })?;
             app.manage(AppState { store });
-
-            // Hide the Dock icon — this is a menu bar utility, not a windowed
-            // app. Equivalent to setting `LSUIElement` in Info.plist for a
-            // shipped bundle, but `set_activation_policy` works at runtime
-            // for `cargo run` too.
-            #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            eprintln!("klef-gui: store ready");
 
             // Tray icon: clicking it toggles the popover, anchored under the
-            // icon via tauri-plugin-positioner.
+            // icon via tauri-plugin-positioner. Build this BEFORE flipping the
+            // activation policy — if it fails we want a clear panic rather
+            // than a silent dock-less exit.
+            let icon = app
+                .default_window_icon()
+                .ok_or("default_window_icon returned None — check tauri.conf.json bundle.icon")?
+                .clone();
             let _tray = TrayIconBuilder::with_id("main")
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(icon)
                 // Template-mode requires a monochrome PNG with alpha so
                 // macOS can tint it with the menu bar color. Our S2.2c
                 // placeholder is a solid blue square — it renders as
@@ -80,9 +82,6 @@ fn main() {
                 // proper alpha-channel logo (S7 polish sprint).
                 .icon_as_template(false)
                 .on_tray_icon_event(|tray, event| {
-                    // The positioner plugin tracks tray geometry from this
-                    // hook; without this call, `Position::TrayCenter` falls
-                    // back to screen center.
                     tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
 
                     if let TrayIconEvent::Click {
@@ -95,6 +94,13 @@ fn main() {
                     }
                 })
                 .build(app)?;
+            eprintln!("klef-gui: tray ready");
+
+            // Hide the Dock icon AFTER the tray is up, so we never end up in
+            // a state where the app is dock-less with no menu bar entry.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            eprintln!("klef-gui: setup done — click the tray icon to open");
 
             Ok(())
         })
