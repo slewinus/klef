@@ -19,6 +19,7 @@ serde_json = "1"
 thiserror = "2"
 time = { version = "0.3", features = ["serde", "formatting", "macros", "parsing"] }
 dirs = "5"
+walkdir = "2"
 
 [dev-dependencies]
 assert_cmd = "2"

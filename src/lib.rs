@@ -51,6 +51,22 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
             rewrite,
             yes,
         } => commands::import::run(&store, &file, prefix.as_deref(), dry_run, rewrite, yes),
+        Command::Discover {
+            root,
+            depth,
+            include,
+            dry_run,
+            yes,
+            on_conflict,
+        } => commands::discover::run(
+            &store,
+            root.as_deref(),
+            depth,
+            include,
+            dry_run,
+            yes,
+            on_conflict,
+        ),
         Command::Names => commands::names::run(&store),
     }
 }
