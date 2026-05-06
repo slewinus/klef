@@ -31,6 +31,9 @@ pub fn run_show(store: &Store, name: &str) -> Result<(), KlefError> {
     if let Some(note) = &meta.note {
         println!("note:    {note}");
     }
+    if !meta.tags.is_empty() {
+        println!("tags:    {}", meta.tags.join(", "));
+    }
     println!("value:   {value}");
     Ok(())
 }

@@ -24,6 +24,9 @@ pub enum Command {
         /// Trailing whitespace is stripped (matches stdin/prompt behavior).
         #[arg(long, value_name = "FILE")]
         value_from_file: Option<PathBuf>,
+        /// Tag the key. Repeatable. Tags are case-sensitive labels for organization.
+        #[arg(long, value_name = "TAG")]
+        tag: Vec<String>,
     },
     /// Print the value of a key on stdout.
     Get { name: String },
@@ -39,6 +42,9 @@ pub enum Command {
         /// Filter entries by case-insensitive substring match on name or note.
         #[arg(long, value_name = "PATTERN")]
         filter: Option<String>,
+        /// Filter to keys having this exact tag (case-sensitive).
+        #[arg(long, value_name = "TAG")]
+        tag: Option<String>,
     },
     /// Remove a key.
     #[command(alias = "remove")]
@@ -58,6 +64,12 @@ pub enum Command {
         /// Trailing whitespace is stripped (matches stdin/prompt behavior).
         #[arg(long, value_name = "FILE")]
         value_from_file: Option<PathBuf>,
+        /// Replace the key's tags with this set. Repeatable.
+        #[arg(long, value_name = "TAG")]
+        tag: Vec<String>,
+        /// Remove all tags from the key.
+        #[arg(long)]
+        clear_tags: bool,
         /// Open `$VISUAL` (or `$EDITOR`) to edit the note. Falls back to a
         /// single-line stdin prompt if neither is set.
         #[arg(long, conflicts_with_all = ["note", "as", "value_from_file"])]
@@ -144,6 +156,8 @@ pub enum Command {
         #[arg(long)]
         force: bool,
     },
+    /// List all tags in the vault with the count of keys carrying each.
+    Tags,
     /// Internal: print one stored key name per line. Used by shell completion scripts.
     /// Hidden from --help.
     #[command(name = "_names", hide = true)]

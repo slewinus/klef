@@ -106,6 +106,7 @@ pub fn run(
             &entry.value,
             Some(entry.env_var.clone()),
             None,
+            vec![],
             false,
         ) {
             Ok(()) => {

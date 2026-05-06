@@ -1,5 +1,5 @@
-//! Integration tests for `Store` (rename, remove, orphan detection,
-//! and `remove` error semantics).
+//! Integration tests for `Store` (add, rename, remove, orphan detection,
+//! tags, and `remove` error semantics).
 //!
 //! Lives outside `src/store/mod.rs` so the latter stays under the 300-line
 //! file cap. Uses only the public klef API.
@@ -8,6 +8,51 @@ use klef::error::KlefError;
 use klef::store::{Backend, MemoryBackend, Store};
 use std::sync::Mutex;
 use tempfile::tempdir;
+
+#[test]
+fn add_then_get_round_trip() {
+    let (s, _d) = make_store();
+    s.add("stripe", "sk_live", None, None, vec![], false)
+        .unwrap();
+    assert_eq!(s.get_value("stripe").unwrap(), "sk_live");
+}
+
+#[test]
+fn add_existing_without_force_fails() {
+    let (s, _d) = make_store();
+    s.add("stripe", "v1", None, None, vec![], false).unwrap();
+    let r = s.add("stripe", "v2", None, None, vec![], false);
+    assert!(matches!(r, Err(KlefError::KeyAlreadyExists(_))));
+}
+
+#[test]
+fn add_existing_with_force_overwrites() {
+    let (s, _d) = make_store();
+    s.add("stripe", "v1", None, None, vec![], false).unwrap();
+    s.add("stripe", "v2", None, None, vec![], true).unwrap();
+    assert_eq!(s.get_value("stripe").unwrap(), "v2");
+}
+
+#[test]
+fn add_with_tags_dedups_and_sorts() {
+    let (s, _d) = make_store();
+    let tags = vec![
+        "billing".to_string(),
+        "prod".to_string(),
+        "billing".to_string(),
+        "alpha".to_string(),
+    ];
+    s.add("stripe", "v", None, None, tags, false).unwrap();
+    let m = s.meta("stripe").unwrap();
+    assert_eq!(m.tags, vec!["alpha", "billing", "prod"]);
+}
+
+#[test]
+fn invalid_name_rejected() {
+    let (s, _d) = make_store();
+    let r = s.add("has space", "v", None, None, vec![], false);
+    assert!(matches!(r, Err(KlefError::InvalidKeyName(_))));
+}
 
 fn make_store() -> (Store, tempfile::TempDir) {
     let dir = tempdir().unwrap();
@@ -21,7 +66,7 @@ fn make_store() -> (Store, tempfile::TempDir) {
 #[test]
 fn rename_moves_value_and_meta() {
     let (s, _d) = make_store();
-    s.add("a", "v", None, None, false).unwrap();
+    s.add("a", "v", None, None, vec![], false).unwrap();
     s.rename("a", "b").unwrap();
     assert!(matches!(s.get_value("a"), Err(KlefError::KeyNotFound(_))));
     assert_eq!(s.get_value("b").unwrap(), "v");
@@ -30,7 +75,7 @@ fn rename_moves_value_and_meta() {
 #[test]
 fn remove_clears_both_layers() {
     let (s, _d) = make_store();
-    s.add("k", "v", None, None, false).unwrap();
+    s.add("k", "v", None, None, vec![], false).unwrap();
     s.remove("k").unwrap();
     assert!(matches!(s.get_value("k"), Err(KlefError::KeyNotFound(_))));
     assert!(s.list().unwrap().is_empty());
@@ -39,7 +84,7 @@ fn remove_clears_both_layers() {
 #[test]
 fn orphan_index_entries_finds_index_only_keys() {
     let (s, _d) = make_store();
-    s.add("a", "v", None, None, false).unwrap();
+    s.add("a", "v", None, None, vec![], false).unwrap();
     assert!(s.orphan_index_entries().unwrap().is_empty());
 }
 
@@ -81,7 +126,7 @@ fn remove_propagates_non_not_found_backend_error() {
     let backend = FailingRemoveBackend::new(|| KlefError::BackendDenied);
     backend.inner.set("k", "v").unwrap();
     let s = Store::new(Box::new(backend), dir.path().join("index.json"));
-    s.add("k", "v", None, None, true).unwrap();
+    s.add("k", "v", None, None, vec![], true).unwrap();
 
     let r = s.remove("k");
     assert!(matches!(r, Err(KlefError::BackendDenied)));
@@ -100,7 +145,7 @@ fn remove_tolerates_backend_key_not_found() {
     // Add directly to index without touching backend by using add() which
     // sets both — then we rely on the failing remove returning KeyNotFound.
     // Since FailingRemoveBackend wraps MemoryBackend, add() works normally.
-    s.add("k", "v", None, None, false).unwrap();
+    s.add("k", "v", None, None, vec![], false).unwrap();
 
     s.remove("k")
         .expect("KeyNotFound from backend must be tolerated");

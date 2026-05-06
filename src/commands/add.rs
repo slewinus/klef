@@ -16,9 +16,10 @@ pub fn run(
     note: Option<String>,
     force: bool,
     value_from_file: Option<&Path>,
+    tags: Vec<String>,
 ) -> Result<(), KlefError> {
     let value = read_value(name, value_from_file)?;
-    store.add(name, value.trim(), env_var, note, force)?;
+    store.add(name, value.trim(), env_var, note, tags, force)?;
     println!("✓ '{name}' saved");
     Ok(())
 }
@@ -58,7 +59,7 @@ mod tests {
     #[test]
     fn add_persists_value_and_meta() {
         let (s, _d) = store();
-        s.add("stripe", "v", None, Some("hi".into()), false)
+        s.add("stripe", "v", None, Some("hi".into()), vec![], false)
             .unwrap();
         let m = s.meta("stripe").unwrap();
         assert_eq!(m.env_var, "STRIPE_API_KEY");
