@@ -94,17 +94,30 @@
     }
   }
 
-  onMount(async () => {
+  // Refresh keys + refocus the search bar. Called once on mount and again
+  // every time the popover is opened via the tray icon or ⌘⇧K. The Rust
+  // side emits `popover-shown` from `toggle_window`; using that explicit
+  // event sidesteps the unreliable DOM `focus` event which doesn't fire
+  // on Tauri webview show/hide.
+  async function refresh() {
     try {
       keys = await listKeys();
+      loadError = null;
     } catch (e) {
       loadError = String(e);
     } finally {
       loading = false;
     }
-    // Auto-focus the search bar so the user can type immediately on popover
-    // open. Tiny delay so the input element exists.
+    // Tiny delay so the SearchBar mounts before we try to focus it on the
+    // first call. Subsequent calls fire while the input already exists.
     setTimeout(() => searchBar?.focus(), 0);
+  }
+
+  onMount(async () => {
+    refresh();
+    const { listen } = await import("@tauri-apps/api/event");
+    const unlisten = await listen("popover-shown", () => refresh());
+    return () => unlisten();
   });
 </script>
 

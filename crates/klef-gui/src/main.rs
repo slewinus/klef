@@ -4,7 +4,7 @@
 
 use klef_core::{KeyDto, build_store};
 use tauri::{
-    Manager as _, WindowEvent,
+    Emitter as _, Manager as _, WindowEvent,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use tauri_plugin_positioner::{Position, WindowExt as _};
@@ -26,12 +26,20 @@ fn list_keys(state: tauri::State<'_, AppState>) -> Result<Vec<KeyDto>, String> {
     Ok(entries.into_iter().map(KeyDto::from).collect())
 }
 
-// `get_key_value` is the only command that returns a secret to the webview.
-// Plaintext is necessary for clipboard copy (Tauri's clipboard plugin runs
-// JS-side, not Rust-side). Mitigations:
-//   - The CSP forbids exfiltration via connect-src (only Tauri IPC + 'self').
-//   - The Svelte `App.svelte` does not retain the value beyond the copy call.
-//   - The capability list explicitly grants only clipboard-manager:write-text.
+// `get_key_value` returns secret plaintext to the webview because the
+// clipboard plugin runs JS-side, not Rust-side. Surface and mitigations:
+//   - The webview also has `clipboard-manager:read-text` (granted in
+//     capabilities/default.json) for the auto-clear verification — it
+//     reads back the clipboard before clearing so we don't wipe content
+//     the user copied from elsewhere within the timeout window.
+//   - The CSP `connect-src` is restricted to Tauri IPC and 'self', so
+//     the secret cannot be exfiltrated to a remote host.
+//   - The Svelte side does not retain the secret beyond the copy call;
+//     the auto-clear timer keeps a copy of the last-written string only
+//     to compare it back, then drops it.
+//   - `edit_key` deliberately re-reads the value from the backend when
+//     the user edits metadata only, so a metadata-only update never
+//     surfaces the plaintext to JS in the first place.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 fn get_key_value(name: String, state: tauri::State<'_, AppState>) -> Result<String, String> {
@@ -98,6 +106,11 @@ fn toggle_window(app: &tauri::AppHandle) {
         let _ = window.move_window(Position::TrayCenter);
         let _ = window.show();
         let _ = window.set_focus();
+        // Notify the frontend that the popover just opened so it can
+        // refresh data and refocus the search bar. The DOM `focus` event
+        // isn't reliable on Tauri's webview when toggling visibility — the
+        // OS-level show/hide doesn't always propagate as a JS focus event.
+        let _ = window.emit("popover-shown", ());
     }
 }
 
@@ -176,8 +189,16 @@ fn main() {
                     Some(Modifiers::SUPER | Modifiers::SHIFT),
                     Code::KeyK,
                 );
-                app.global_shortcut().register(shortcut)?;
-                eprintln!("klef-gui: ⌘⇧K registered");
+                // Don't fail the whole app if another process already owns
+                // ⌘⇧K (e.g. another launcher utility). The tray icon click
+                // still works as a fallback. A future Settings UI (S7) will
+                // let users pick a different chord.
+                match app.global_shortcut().register(shortcut) {
+                    Ok(()) => eprintln!("klef-gui: ⌘⇧K registered"),
+                    Err(e) => eprintln!(
+                        "klef-gui: failed to register ⌘⇧K ({e}); tray icon click still works"
+                    ),
+                }
             }
 
             // Hide the Dock icon AFTER the tray is up, so we never end up in
