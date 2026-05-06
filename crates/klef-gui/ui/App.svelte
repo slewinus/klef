@@ -1,8 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { copyToClipboard, getKeyValue, listKeys } from "./lib/api";
+  import {
+    copyToClipboard,
+    deleteKey,
+    getKeyValue,
+    listKeys,
+  } from "./lib/api";
   import { filterByProject, filterKeys } from "./lib/filter";
   import type { KeyDto } from "./lib/types";
+  import AddKeyModal from "./lib/AddKeyModal.svelte";
+  import ConfirmDialog from "./lib/ConfirmDialog.svelte";
   import KeyRow from "./lib/KeyRow.svelte";
   import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
@@ -17,6 +24,9 @@
   let query = $state("");
   let selectedProject = $state<string | null>(null);
   let searchBar: SearchBar | undefined = $state();
+
+  let showAddModal = $state(false);
+  let pendingDelete = $state<KeyDto | null>(null);
 
   // Filter pipeline: project first (narrows the candidate set), then search
   // query. Order doesn't change correctness but project-first is cheaper
@@ -39,6 +49,28 @@
     } catch (e) {
       showToast(`error: ${e}`);
     }
+  }
+
+  async function handleDeleteConfirm() {
+    if (!pendingDelete) return;
+    const name = pendingDelete.name;
+    try {
+      await deleteKey(name);
+      keys = keys.filter((k) => k.name !== name);
+      showToast(`${name} deleted`);
+    } catch (e) {
+      showToast(`error: ${e}`);
+    } finally {
+      pendingDelete = null;
+    }
+  }
+
+  async function handleAdded() {
+    showAddModal = false;
+    showToast("key added");
+    // Refresh from disk so we pick up the canonical KeyMeta (default
+    // env_var, sorted tags) rather than reconstructing it client-side.
+    keys = await listKeys();
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -70,7 +102,17 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <header>
-  <div class="title">klef</div>
+  <div class="title-row">
+    <div class="title">klef</div>
+    <button
+      class="add-btn"
+      onclick={() => (showAddModal = true)}
+      aria-label="Add key"
+      title="Add key"
+    >
+      +
+    </button>
+  </div>
   <SearchBar bind:this={searchBar} bind:value={query} />
   <ProjectChips
     {keys}
@@ -102,12 +144,34 @@
     </div>
   {:else}
     {#each visibleKeys as key (key.name)}
-      <KeyRow {key} onCopy={handleCopy} />
+      <KeyRow
+        {key}
+        onCopy={handleCopy}
+        onDelete={(k) => (pendingDelete = k)}
+      />
     {/each}
   {/if}
 </main>
 
 <Toast message={toast} />
+
+{#if showAddModal}
+  <AddKeyModal
+    onClose={() => (showAddModal = false)}
+    onAdded={handleAdded}
+  />
+{/if}
+
+{#if pendingDelete}
+  <ConfirmDialog
+    title="Delete key"
+    message="Permanently delete “{pendingDelete.name}”? This removes the value from the Keychain and the index entry."
+    confirmLabel="Delete"
+    danger
+    onConfirm={handleDeleteConfirm}
+    onCancel={() => (pendingDelete = null)}
+  />
+{/if}
 
 <style>
   header {
@@ -118,9 +182,38 @@
     flex-direction: column;
     gap: 6px;
   }
+  .title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
   .title {
     font-weight: 600;
     font-size: 13px;
+  }
+  .add-btn {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: #007aff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    font-family: inherit;
+  }
+  .add-btn:hover {
+    background: #0051d5;
+  }
+  @media (prefers-color-scheme: dark) {
+    .add-btn {
+      background: #0a84ff;
+    }
+    .add-btn:hover {
+      background: #0066cc;
+    }
   }
   main {
     padding: 8px;

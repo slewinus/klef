@@ -13,6 +13,30 @@ export function getKeyValue(name: string): Promise<string> {
   return invoke<string>("get_key_value", { name });
 }
 
+export interface AddKeyInput {
+  name: string;
+  value: string;
+  envVar?: string;
+  note?: string;
+  tags: string[];
+}
+
+export function addKey(input: AddKeyInput): Promise<void> {
+  // Tauri serializes camelCase JS keys to snake_case Rust args
+  // automatically when the Rust function uses snake_case parameter names.
+  return invoke<void>("add_key", {
+    name: input.name,
+    value: input.value,
+    envVar: input.envVar ?? null,
+    note: input.note ?? null,
+    tags: input.tags,
+  });
+}
+
+export function deleteKey(name: string): Promise<void> {
+  return invoke<void>("delete_key", { name });
+}
+
 // Copies the value AND schedules an auto-clear after 30 s. See
 // `./clipboard.ts` for the semantics around concurrent copies and
 // best-effort clearing.

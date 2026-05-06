@@ -4,9 +4,10 @@
   interface Props {
     key: KeyDto;
     onCopy: (key: KeyDto) => void | Promise<void>;
+    onDelete: (key: KeyDto) => void;
   }
 
-  let { key, onCopy }: Props = $props();
+  let { key, onCopy, onDelete }: Props = $props();
   let copying = $state(false);
 
   async function handleClick() {
@@ -32,9 +33,19 @@
       {/if}
     </div>
   </div>
-  <button onclick={handleClick} disabled={copying}>
-    {copying ? "…" : "Copy"}
-  </button>
+  <div class="row-actions">
+    <button class="copy" onclick={handleClick} disabled={copying}>
+      {copying ? "…" : "Copy"}
+    </button>
+    <button
+      class="delete"
+      onclick={() => onDelete(key)}
+      aria-label="Delete {key.name}"
+      title="Delete"
+    >
+      ×
+    </button>
+  </div>
 </div>
 
 <style>
@@ -69,21 +80,39 @@
     margin-right: 4px;
     font-size: 11px;
   }
+  .row-actions {
+    display: flex;
+    gap: 4px;
+  }
   button {
     padding: 4px 10px;
     font-size: 12px;
-    background: #007aff;
-    color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    font-family: inherit;
   }
-  button:hover {
+  .copy {
+    background: #007aff;
+    color: white;
+  }
+  .copy:hover {
     background: #0051d5;
   }
-  button:disabled {
+  .copy:disabled {
     background: #c7c7cc;
     cursor: default;
+  }
+  .delete {
+    background: transparent;
+    color: #6e6e73;
+    padding: 4px 8px;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .delete:hover {
+    background: rgba(255, 59, 48, 0.12);
+    color: #ff3b30;
   }
   @media (prefers-color-scheme: dark) {
     .row {

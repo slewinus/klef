@@ -38,6 +38,32 @@ fn get_key_value(name: String, state: tauri::State<'_, AppState>) -> Result<Stri
     state.store.get_value(&name).map_err(|e| e.to_string())
 }
 
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+fn add_key(
+    name: String,
+    value: String,
+    env_var: Option<String>,
+    note: Option<String>,
+    tags: Vec<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    // `force = false`: this command is for "Add", not "Update". The GUI
+    // surfaces a separate Edit form (S4.2) that calls add with force=true.
+    // env_var: None lets Store::add derive the default (`UPPERCASE_API_KEY`)
+    // exactly like the CLI does.
+    state
+        .store
+        .add(&name, &value, env_var, note, tags, false)
+        .map_err(|e| e.to_string())
+}
+
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+fn delete_key(name: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.store.remove(&name).map_err(|e| e.to_string())
+}
+
 fn toggle_window(app: &tauri::AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -146,7 +172,12 @@ fn main() {
                 let _ = window.hide();
             }
         })
-        .invoke_handler(tauri::generate_handler![list_keys, get_key_value])
+        .invoke_handler(tauri::generate_handler![
+            list_keys,
+            get_key_value,
+            add_key,
+            delete_key
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
