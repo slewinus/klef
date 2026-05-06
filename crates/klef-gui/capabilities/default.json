@@ -9,6 +9,7 @@
     "core:window:allow-hide",
     "core:window:allow-set-focus",
     "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-text",
     "positioner:default",
     "positioner:allow-move-window",
     "global-shortcut:default",

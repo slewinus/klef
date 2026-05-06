@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { copyWithAutoClear } from "./clipboard";
 import type { KeyDto } from "./types";
 
 // Thin wrappers over Tauri commands. Keep these typed so the Svelte
@@ -13,6 +13,9 @@ export function getKeyValue(name: string): Promise<string> {
   return invoke<string>("get_key_value", { name });
 }
 
+// Copies the value AND schedules an auto-clear after 30 s. See
+// `./clipboard.ts` for the semantics around concurrent copies and
+// best-effort clearing.
 export function copyToClipboard(value: string): Promise<void> {
-  return writeText(value);
+  return copyWithAutoClear(value);
 }

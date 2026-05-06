@@ -35,7 +35,7 @@
     try {
       const value = await getKeyValue(key.name);
       await copyToClipboard(value);
-      showToast(`${key.name} copied`);
+      showToast(`${key.name} copied — clipboard clears in 30s`);
     } catch (e) {
       showToast(`error: ${e}`);
     }
