@@ -42,6 +42,7 @@
   let editTarget = $state<KeyDto | null>(null);
   let pendingDelete = $state<KeyDto | null>(null);
   let dotenvPlan = $state<DotenvPlan | null>(null);
+  let pinned = $state(false);
 
   // Pipeline: sort by recency, then project filter, then search query.
   // Sort runs first so the recency order is preserved through filtering.
@@ -172,6 +173,7 @@
     const teardownLife = await setupPopoverLifecycle(
       () => refresh(),
       () => anyModalOpen,
+      () => pinned,
     );
     const teardownDrop = await onDotenvDropped(handleDotenvDropped);
     return () => {
@@ -187,22 +189,11 @@
   <div class="title-row">
     <div class="title">klef</div>
     <div class="header-actions">
-      <button
-        class="hdr-btn"
-        onclick={() => (showSettings = true)}
-        aria-label="Settings"
-        title="Settings"
-      >
-        ⚙
+      <button class="hdr-btn" class:active={pinned} onclick={() => (pinned = !pinned)} title={pinned ? "Unpin" : "Pin (keeps popover open)"}>
+        {pinned ? "📍" : "📌"}
       </button>
-      <button
-        class="hdr-btn primary"
-        onclick={() => (showAddModal = true)}
-        aria-label="Add key"
-        title="Add key"
-      >
-        +
-      </button>
+      <button class="hdr-btn" onclick={() => (showSettings = true)} title="Settings">⚙</button>
+      <button class="hdr-btn primary" onclick={() => (showAddModal = true)} title="Add key">+</button>
     </div>
   </div>
   <SearchBar bind:this={searchBar} bind:value={query} />
@@ -275,6 +266,7 @@
     cursor: pointer; font-size: 14px; line-height: 1; font-family: inherit;
   }
   .hdr-btn:hover { background: #f5f5f7; color: #1d1d1f; }
+  .hdr-btn.active { background: #ffe5b3; color: #8a4500; }
   .hdr-btn.primary { background: #007aff; color: white; font-size: 16px; border-color: #007aff; }
   .hdr-btn.primary:hover { background: #0051d5; color: white; }
   @media (prefers-color-scheme: dark) {

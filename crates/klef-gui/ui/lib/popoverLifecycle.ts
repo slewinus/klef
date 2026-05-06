@@ -4,6 +4,9 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 /** Returns a getter for "is any modal open right now?". */
 export type IsModalOpen = () => boolean;
 
+/** Returns a getter for "is the popover pinned (auto-hide disabled)?". */
+export type IsPinned = () => boolean;
+
 /**
  * Wires the popover's lifecycle events:
  * - Calls `onShown` whenever the Rust side emits `popover-shown` (so the
@@ -18,13 +21,14 @@ export type IsModalOpen = () => boolean;
 export async function setupPopoverLifecycle(
   onShown: () => void,
   isModalOpen: IsModalOpen,
+  isPinned: IsPinned,
 ): Promise<() => void> {
   const win = getCurrentWebviewWindow();
 
   const unlistenShown = await listen("popover-shown", () => onShown());
 
   const unlistenFocus = await win.onFocusChanged(({ payload: focused }) => {
-    if (!focused && !isModalOpen()) {
+    if (!focused && !isModalOpen() && !isPinned()) {
       win.hide();
     }
   });
