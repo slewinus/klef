@@ -38,14 +38,10 @@ pub enum PolicyError {
     },
 }
 
-const SKELETON: &str = r#"# klef MCP policy file.
-#
-# Each [[allow]] rule whitelists one argv pattern + the env_refs that may be
-# injected into it. A request is allowed if SOME rule matches argv (with
-# wildcards) AND covers every requested env_ref. Otherwise: deny.
-#
-# Shells (sh, bash, zsh, python, node, ...) are denied unconditionally.
-# See docs/mcp.md for full semantics.
+const SKELETON: &str = r#"# klef MCP policy file. Each [[allow]] rule whitelists one argv pattern +
+# env_refs that may be injected. A request is allowed iff SOME rule matches
+# argv (with wildcards) AND covers every requested env_ref. Shells (sh, bash,
+# python, node, ...) are denied unconditionally. See docs/mcp.md.
 
 # Roots under which klef_run may execute. Empty = ignore client-supplied cwd.
 workspace_roots = []
@@ -119,6 +115,25 @@ pub fn is_shell_program(argv0: &str) -> bool {
         .and_then(|s| s.to_str())
         .unwrap_or(argv0);
     SHELL_DENYLIST.contains(&name)
+}
+
+/// Whether `cwd` resolves to a path under any element of `roots`.
+///
+/// Empty `roots` returns `true` — interpreted as "no constraint".
+/// Both `cwd` and each `root` are canonicalized; canonicalization failures
+/// (non-existent paths, permission errors) yield `false`.
+#[must_use]
+pub fn cwd_under_roots(cwd: &Path, roots: &[PathBuf]) -> bool {
+    if roots.is_empty() {
+        return true;
+    }
+    let Ok(cwd_real) = cwd.canonicalize() else {
+        return false;
+    };
+    roots.iter().any(|r| {
+        r.canonicalize()
+            .is_ok_and(|root_real| cwd_real.starts_with(&root_real))
+    })
 }
 
 #[cfg(test)]
@@ -249,5 +264,36 @@ env_refs = ["stripe"]
             !is_shell_program("./my-script.sh"),
             "extension does not imply shell interpreter"
         );
+    }
+
+    #[test]
+    fn cwd_under_roots_empty_means_unconstrained() {
+        assert!(cwd_under_roots(Path::new("/etc"), &[]));
+    }
+
+    #[test]
+    fn cwd_under_roots_match() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let sub = root.join("project").join("src");
+        std::fs::create_dir_all(&sub).unwrap();
+        assert!(cwd_under_roots(&sub, &[root.to_path_buf()]));
+    }
+
+    #[test]
+    fn cwd_under_roots_outside_is_rejected() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().join("a");
+        let sibling = tmp.path().join("b");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&sibling).unwrap();
+        assert!(!cwd_under_roots(&sibling, &[root]));
+    }
+
+    #[test]
+    fn cwd_under_roots_nonexistent_cwd_is_rejected() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        assert!(!cwd_under_roots(&root.join("does-not-exist"), &[root]));
     }
 }
