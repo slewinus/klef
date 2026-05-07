@@ -28,9 +28,9 @@
   --warning: #ff9500;
 
   /* Radius / shadow — generous rounding, modern feel */
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
 
   /* Type */
@@ -61,7 +61,7 @@ body {
   position: relative;
   overflow: hidden;
   background: var(--surface);
-  border-radius: 14px;
+  border-radius: 20px;
   border: 1px solid var(--border);
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.18),
