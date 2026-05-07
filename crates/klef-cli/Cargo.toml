@@ -38,6 +38,11 @@ age = { version = "0.11", features = ["armor"] }
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
+# Test-only: use rmcp as a client to drive the spawned `klef mcp` server
+# over stdio. `transport-child-process` provides `TokioChildProcess`, which
+# wires the child's stdio into the rmcp client transport.
+rmcp = { version = "0.1", features = ["client", "transport-child-process"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "time"] }
 
 [lib]
 name = "klef"
