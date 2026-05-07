@@ -67,7 +67,17 @@ pub mod macos_keychain {
     pub fn apply_friendly_settings(s: &KeychainStatus) -> Result<(), KeychainHelperError>;
 
     /// Build the precise shell command that reverts to the prior state.
-    /// e.g. `security set-keychain-settings -t 600 -l <path>`.
+    ///
+    /// `man security` semantics on `set-keychain-settings`:
+    /// - `-u`: enable "lock after timeout" (without this, `-t` has no effect).
+    /// - `-t N`: timeout in seconds, only honored with `-u`.
+    /// - `-l`: lock when system sleeps.
+    /// - no flags: clear both.
+    ///
+    /// So a state with `timeout=600` and `lock_on_sleep=true` reverts via
+    /// `security set-keychain-settings -u -t 600 -l <path>`.
+    /// A state with `timeout=None` and `lock_on_sleep=false` needs no revert
+    /// (prior was already friendly) — the function returns a comment string.
     pub fn build_revert_command(prev: &KeychainStatus) -> String;
 }
 
@@ -105,7 +115,7 @@ Three invocations the helper performs:
 
 1. `cfg(target_os = "macos")`.
 2. Effective backend is Keychain (not `--backend age:...`, not the debug-only file backend).
-3. Command will read or write a Keychain value: one of `get`, `show`, `run`, `import`, `export`, `add`, `edit`, `rm`, `set-note`, `rename`, `mcp`. **NOT** triggered for: `list`, `status`, `completions`, `names`, `tags`, `discover`, `backup`, `restore`. (`backup`/`restore` involve all keys but happen rarely; users initiating these have given consent to a heavy operation already, so omitting the banner there is fine.)
+3. Command will read or write a Keychain value: one of `get`, `show`, `run`, `import`, `export`, `add`, `edit`, `rm`, `rename`. **NOT** triggered for: `list`, `status`, `completions`, `names`, `tags`, `discover`, `backup`, `restore`, `set-note` (only touches the index file, never the keychain), `mcp` (see "MCP visibility limitation" below).
 4. `KLEF_NO_KEYCHAIN_AUTOCONFIG` is not set.
 5. Marker file does not exist.
 6. `current_status()` succeeds and `is_already_friendly()` returns false.
@@ -127,7 +137,14 @@ The exact `timeout: Xs` and `lock-on-sleep: yes/no` values come from `current_st
 
 ### Marker after banner
 
-After printing the banner once, klef writes the marker (with `applied: false`) and never prints the banner again unless the user deletes the marker. The marker's role here is *suppress repetitive nagging*, nothing more.
+After printing the banner, klef writes the marker (with `applied: false`) and records the keychain state at banner time. On subsequent runs:
+
+- If marker says `applied: true` → silent (klef already fixed; nothing to do).
+- If marker says `applied: false`, the banner is re-shown when **either**:
+  - The current keychain state has changed since the banner was last shown (e.g., user re-enabled timeout, or it was the GUI button, etc.). The user is in a new situation, so re-surface.
+  - Or the marker is older than 7 days (mtime-based TTL). After a week of seeing prompts, klef nags once more in case the user missed it the first time. After dismissing again, another 7 days of silence.
+
+This balances "respect the user who saw it and chose to ignore" (suppress for a week) with "don't bury the message forever if they missed it" (re-show eventually).
 
 ### Trigger placement in code
 
@@ -144,7 +161,11 @@ In `klef-cli/src/lib.rs::run()`, after `build_store(...)` and before the `match 
 
 Two small predicate functions. `backend_is_keychain` queries the Store's backend description string. `command_touches_values` is a static match on `cli.command` listing the value-touching variants.
 
-For `klef mcp`, the banner is shown at startup if the conditions hold (the user sees it on stderr in Claude Desktop's MCP logs or in the Claude Code session output).
+### MCP visibility limitation
+
+`klef mcp` does **not** print the banner. Reason: when launched as a child of Claude Desktop, klef's stderr is captured to log files (`~/Library/Logs/Claude/`) that the user doesn't watch. Even Claude Code, which surfaces some stderr in the session, may not render it prominently for an MCP child. So the banner's "in-context surface" promise is broken for MCP.
+
+For v1 we accept this limitation and document it: pure-MCP-only users (rare — most install klef via brew/cargo and at minimum run `klef list` or `klef add` from the CLI) will see password prompts and need to discover `klef keychain configure` from `docs/macos-keychain.md` or the GUI's "Fix Keychain prompts" button. A future enhancement (out of scope) could surface the warning via a meta field on `klef_list`'s response so the agent can mention it in chat.
 
 ## CLI: `klef keychain configure`
 
@@ -192,9 +213,16 @@ After banner shown but no apply:
 ```json
 {
   "applied": false,
-  "banner_shown_at": "2026-05-07T14:23:45Z"
+  "banner_shown_at": "2026-05-07T14:23:45Z",
+  "banner_state": {
+    "keychain_path": "/Users/oscarr/Library/Keychains/login.keychain-db",
+    "timeout_seconds": 600,
+    "lock_on_sleep": true
+  }
 }
 ```
+
+(Re-show triggers when current state ≠ `banner_state`, OR when `mtime(marker) + 7 days < now`.)
 
 After `klef keychain configure`:
 ```json
@@ -235,14 +263,16 @@ The marker's job is twofold:
 The shell-out is encapsulated behind a trait so tests inject mock outputs:
 
 ```rust
-trait SecurityCli {
+pub(crate) trait SecurityCli {
     fn default_keychain(&self) -> Result<String, KeychainHelperError>;
     fn show_keychain_info(&self, path: &Path) -> Result<String, KeychainHelperError>;
     fn set_keychain_settings(&self, path: &Path, timeout: Option<u64>, lock_on_sleep: bool) -> Result<(), KeychainHelperError>;
 }
 ```
 
-Production impl wraps `Command::new("/usr/bin/security")`. Test impl is a struct with configurable returns. Public functions (`current_status`, `apply_friendly_settings`, etc.) take `impl SecurityCli` so tests can substitute.
+Production impl wraps `Command::new("/usr/bin/security")`. Test impl is a struct with configurable returns.
+
+**API surface decision** (resolves earlier ambiguity): the *public* functions (`current_status()`, `apply_friendly_settings()`, etc.) take **no** trait argument and use the production impl internally. Tests use `pub(crate)` `*_with_cli(cli: &impl SecurityCli, ...)` variants. Production callers get a clean API; tests get injection. No public exposure of the `SecurityCli` trait.
 
 Tests:
 
@@ -250,17 +280,20 @@ Tests:
 2. `parse_show_no_timeout_no_lock` — input `Keychain "..." no-timeout`, expect `KeychainStatus { timeout_seconds: None, lock_on_sleep: false, .. }`.
 3. `parse_show_timeout_with_lock` — input `Keychain "..." timeout=600s lock-on-sleep`, expect `Some(600), true`.
 4. `is_already_friendly_true_only_when_both_clear` — table-driven: friendly only when timeout None AND lock_on_sleep false.
-5. `build_revert_command_includes_timeout_and_lock` — given prev state with `timeout: 600, lock_on_sleep: true`, output contains `-t 600 -l`.
-6. `build_revert_command_no_lock` — given prev `timeout: 30, lock_on_sleep: false`, output contains `-t 30` and NOT `-l`.
-7. `apply_friendly_settings_invokes_security_with_no_flags` — mock SecurityCli, assert `set_keychain_settings(path, None, false)` was called.
+5. `build_revert_command_includes_u_t_and_l` — prev `timeout: Some(600), lock_on_sleep: true` → output contains `-u -t 600 -l`.
+6. `build_revert_command_no_lock` — prev `timeout: Some(30), lock_on_sleep: false` → contains `-u -t 30` and NOT `-l`.
+7. `build_revert_command_friendly_state_returns_no_op` — prev `timeout: None, lock_on_sleep: false` → returns a no-op explanation (e.g., a `# nothing to revert` comment), NOT a callable command.
+8. `apply_friendly_settings_invokes_security_with_no_flags` — mock SecurityCli, assert `set_keychain_settings(path, None, false)` was called.
 
 ### CLI-level tests (`klef-cli/src/...`)
 
-8. `banner_does_not_show_when_marker_present` — set fake config dir with marker, run banner check, assert silent.
-9. `banner_does_not_show_when_env_var_set` — set `KLEF_NO_KEYCHAIN_AUTOCONFIG`, assert silent.
-10. `banner_shown_writes_marker_with_applied_false` — happy path, assert marker JSON has `applied: false`.
-11. `keychain_configure_writes_marker_with_prev_state` — happy path with mock helper, assert marker JSON contains the prev state fields.
-12. `keychain_configure_idempotent_when_already_friendly` — mock returns `is_already_friendly == true`, assert no `set_keychain_settings` call.
+9. `banner_does_not_show_when_marker_recent_and_state_unchanged` — write a marker with `applied: false`, recent mtime, and matching `banner_state`. Assert silent.
+10. `banner_re_shows_when_marker_state_drifts` — marker says `timeout: 600`, current state is `timeout: 30`. Assert banner shows again, marker rewritten.
+11. `banner_re_shows_when_marker_older_than_ttl` — marker mtime > 7 days. Assert banner shows again.
+12. `banner_does_not_show_when_env_var_set` — set `KLEF_NO_KEYCHAIN_AUTOCONFIG`, assert silent.
+13. `banner_shown_writes_marker_with_applied_false_and_state` — happy path, assert marker JSON has `applied: false` and a populated `banner_state`.
+14. `keychain_configure_writes_marker_with_prev_state` — happy path with mock helper, assert marker JSON contains the prev state fields.
+15. `keychain_configure_idempotent_when_already_friendly` — mock returns `is_already_friendly == true`, assert no `set_keychain_settings` call.
 
 Pure Rust, no real `security` binary touched, no real keychain touched.
 
