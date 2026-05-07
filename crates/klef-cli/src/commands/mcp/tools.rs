@@ -164,11 +164,10 @@ pub async fn klef_run(ctx: &Ctx, mut input: RunInput) -> Result<RunOutput, ToolE
     }
 
     // 2. Policy evaluation.
-    let cwd_ref = input.cwd.as_deref();
     let pol_req = PolReq {
         argv: &input.argv,
         env_refs: &input.env_refs,
-        cwd: cwd_ref,
+        cwd: input.cwd.as_deref(),
     };
     let matched_rule_index = match ctx.policy.evaluate(&pol_req) {
         Decision::Allow { matched_rule_index } => matched_rule_index,
@@ -179,28 +178,45 @@ pub async fn klef_run(ctx: &Ctx, mut input: RunInput) -> Result<RunOutput, ToolE
         }
     };
 
-    // 3. Resolve env_refs from store.
-    let mut resolved: Vec<(String, String)> = Vec::with_capacity(input.env_refs.len());
+    // 3. Resolve env_refs from store. Inject under each key's `env_var`
+    //    metadata (e.g. `STRIPE_API_KEY`), not the klef key name.
+    let store_for_meta = ctx.store.clone();
+    let metas = tokio::task::spawn_blocking(move || store_for_meta.list())
+        .await
+        .map_err(|e| ToolError::Internal(e.to_string()))?
+        .map_err(|e| ToolError::Internal(e.to_string()))?;
+    let mut resolved: Vec<(String, String, String)> = Vec::with_capacity(input.env_refs.len());
     for name in &input.env_refs {
+        let Some(meta) = metas
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, m)| m.clone())
+        else {
+            let reason = format!("env_ref_not_found:{name}");
+            record_deny(&ctx.audit, &input, &reason)?;
+            return Err(ToolError::EnvRefNotFound(name.clone()));
+        };
         let store = ctx.store.clone();
         let n = name.clone();
         let v = tokio::task::spawn_blocking(move || store.get_value(&n))
             .await
             .map_err(|e| ToolError::Internal(e.to_string()))?;
-        if let Ok(value) = v {
-            resolved.push((name.clone(), value));
-        } else {
+        let Ok(value) = v else {
             let reason = format!("env_ref_not_found:{name}");
             record_deny(&ctx.audit, &input, &reason)?;
             return Err(ToolError::EnvRefNotFound(name.clone()));
-        }
+        };
+        resolved.push((name.clone(), meta.env_var, value));
     }
 
     // 4. Pre-spawn audit gate: if this fails, NOTHING runs.
     record_started(&ctx.audit, &input, matched_rule_index)?;
 
     // 5. Spawn the child.
-    let env: HashMap<String, String> = resolved.iter().cloned().collect();
+    let env: HashMap<String, String> = resolved
+        .iter()
+        .map(|(_, var, val)| (var.clone(), val.clone()))
+        .collect();
     let proc_req = ProcRequest {
         argv: input.argv.clone(),
         env,
@@ -211,9 +227,15 @@ pub async fn klef_run(ctx: &Ctx, mut input: RunInput) -> Result<RunOutput, ToolE
         .await
         .map_err(|e| ToolError::Internal(e.to_string()))?;
 
-    // 6. Best-effort redaction (mutates buffers in place).
-    redact::redact(&mut result.stdout, &resolved);
-    redact::redact(&mut result.stderr, &resolved);
+    // 6. Best-effort redaction. Redact on the klef key name (not env var
+    //    name) to keep the placeholder stable across rename / env_var
+    //    reconfiguration.
+    let redact_pairs: Vec<(String, String)> = resolved
+        .iter()
+        .map(|(name, _, val)| (name.clone(), val.clone()))
+        .collect();
+    redact::redact(&mut result.stdout, &redact_pairs);
+    redact::redact(&mut result.stderr, &redact_pairs);
 
     // 7. UTF-8 vs base64 encoding decision.
     let (stdout_str, stderr_str, encoding) = encode_outputs(&result.stdout, &result.stderr);
@@ -239,9 +261,8 @@ pub async fn klef_run(ctx: &Ctx, mut input: RunInput) -> Result<RunOutput, ToolE
 
 #[path = "tools_encode.rs"]
 mod encode;
+use encode::encode_outputs;
 
 #[cfg(test)]
 #[path = "tools_tests.rs"]
 mod tests;
-
-use encode::encode_outputs;

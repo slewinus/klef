@@ -89,16 +89,17 @@ async fn klef_run_deny_no_rule_match() {
 
 #[tokio::test]
 async fn klef_run_allow_redacts_secret() {
+    // env_var defaults to STRIPE_API_KEY for a key named "stripe".
     let toml = r#"
         [[allow]]
-        argv = ["printenv", "stripe"]
+        argv = ["printenv", "STRIPE_API_KEY"]
         env_refs = ["stripe"]
     "#;
     let (ctx, _tmp) = ctx_for_tests(toml);
     let out = klef_run(
         &ctx,
         RunInput {
-            argv: vec!["printenv".into(), "stripe".into()],
+            argv: vec!["printenv".into(), "STRIPE_API_KEY".into()],
             env_refs: vec!["stripe".into()],
             cwd: None,
             timeout_ms: Some(5000),
@@ -108,7 +109,7 @@ async fn klef_run_allow_redacts_secret() {
     .expect("allow path must succeed");
     assert_eq!(
         out.exit_code, 0,
-        "printenv should find env var named 'stripe'"
+        "printenv should find env var named 'STRIPE_API_KEY'"
     );
     assert!(
         !out.stdout.contains("sk_live_abcdefg"),
