@@ -4,6 +4,7 @@
 pub mod audit;
 pub mod policy;
 pub mod redact;
+pub mod run_proc;
 
 use klef_core::error::KlefError;
 use klef_core::store::Store;

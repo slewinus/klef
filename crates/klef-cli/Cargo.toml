@@ -27,10 +27,11 @@ rmcp   = { version = "0.1", features = ["server"], optional = true }
 tokio  = { version = "1",   features = ["rt-multi-thread", "macros", "process", "io-util", "time", "sync"], optional = true }
 toml   = { version = "0.8", optional = true }
 glob   = { version = "0.3", optional = true }
+libc   = { version = "0.2", optional = true }
 
 [features]
 default = []
-mcp = ["dep:rmcp", "dep:tokio", "dep:toml", "dep:glob"]
+mcp = ["dep:rmcp", "dep:tokio", "dep:toml", "dep:glob", "dep:libc"]
 
 [dev-dependencies]
 age = { version = "0.11", features = ["armor"] }
@@ -46,5 +47,12 @@ path = "src/lib.rs"
 name = "klef"
 path = "src/main.rs"
 
-[lints]
-workspace = true
+[lints.rust]
+# Override workspace `forbid(unsafe_code)` to `deny`, so the `mcp` module
+# can use a tightly-scoped `unsafe` block (setsid pre_exec + killpg) with
+# `#[allow(unsafe_code)]`. All other unsafe stays denied.
+unsafe_code = "deny"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery  = { level = "warn", priority = -1 }
