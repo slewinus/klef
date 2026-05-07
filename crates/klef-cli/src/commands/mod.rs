@@ -6,6 +6,8 @@ pub mod edit;
 pub mod export;
 pub mod get;
 pub mod import;
+#[cfg(target_os = "macos")]
+pub mod keychain;
 pub mod list;
 #[cfg(feature = "mcp")]
 pub mod mcp;

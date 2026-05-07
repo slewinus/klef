@@ -101,9 +101,7 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
         Command::Mcp { policy } => commands::mcp::run(store, policy),
         #[cfg(target_os = "macos")]
         Command::Keychain { action } => match action {
-            cli::KeychainAction::Configure => Err(KlefError::BackendUnavailable(
-                "klef keychain configure not yet wired".into(),
-            )),
+            cli::KeychainAction::Configure => commands::keychain::run(),
         },
     }
 }
