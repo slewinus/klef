@@ -1,6 +1,7 @@
 //! `klef mcp` — MCP server exposing `klef_list` (metadata) and `klef_run`
 //! (process spawn with klef: refs injected). See `docs/mcp.md`.
 
+pub mod audit;
 pub mod policy;
 
 use klef_core::error::KlefError;
