@@ -159,7 +159,7 @@
   .modal {
     position: absolute;
     inset: 12px;
-    background: #fff;
+    background: var(--surface);
     border-radius: 8px;
     padding: 14px;
     z-index: 11;
@@ -170,30 +170,30 @@
     overflow-y: auto;
   }
   h2 { margin: 0; font-size: 14px; font-weight: 600; }
-  .src { color: #98989d; font-size: 10px; word-break: break-all; }
+  .src { color: var(--text-tertiary); font-size: 10px; word-break: break-all; }
   label {
     display: flex;
     flex-direction: column;
     gap: 3px;
     font-size: 11px;
-    color: #6e6e73;
+    color: var(--text-secondary);
   }
   input[type="text"] {
     padding: 5px 8px;
     font-size: 13px;
-    border: 1px solid #d2d2d7;
-    border-radius: 5px;
-    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
     color: inherit;
     font-family: inherit;
     outline: none;
   }
-  input[type="text"]:focus { border-color: #007aff; box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2); }
-  small { color: #98989d; font-size: 10px; }
-  .banner { background: #fff5cc; color: #8a4500; padding: 8px 10px; border-radius: 5px; font-size: 12px; line-height: 1.4; }
+  input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2); }
+  small { color: var(--text-tertiary); font-size: 10px; }
+  .banner { background: var(--surface)5cc; color: #8a4500; padding: 8px 10px; border-radius: var(--radius); font-size: 12px; line-height: 1.4; }
   label.checkbox { flex-direction: row; align-items: center; gap: 6px; font-size: 12px; color: inherit; }
   label.checkbox input { width: auto; }
-  code { background: #e5e5ea; padding: 0 4px; border-radius: 3px; }
+  code { background: var(--surface-2); padding: 0 4px; border-radius: 3px; }
   .rows { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
   label.row {
     display: grid;
@@ -201,46 +201,35 @@
     gap: 8px;
     align-items: center;
     padding: 6px 8px;
-    border: 1px solid #d2d2d7;
-    border-radius: 5px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     cursor: pointer;
     flex-direction: row;
   }
   label.row.disabled { cursor: default; opacity: 0.5; }
-  label.row .env { font-weight: 600; color: #1d1d1f; font-size: 12px; }
+  label.row .env { font-weight: 600; color: var(--text); font-size: 12px; }
   label.row .sub { display: flex; gap: 6px; align-items: center; font-size: 11px; }
-  label.row .klef { color: #6e6e73; }
-  label.row .value { font-family: ui-monospace, monospace; font-size: 11px; color: #6e6e73; }
+  label.row .klef { color: var(--text-secondary); }
+  label.row .value { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-secondary); }
   .status { padding: 0 6px; border-radius: 3px; font-size: 10px; text-transform: uppercase; font-weight: 600; }
   .status-new { background: #d1f4d1; color: #006400; }
   .status-conflict { background: #ffe5b3; color: #8a4500; }
-  .status-ref { background: #d2d2d7; color: #6e6e73; }
-  .status-empty { background: #d2d2d7; color: #6e6e73; }
+  .status-ref { background: #d2d2d7; color: var(--text-secondary); }
+  .status-empty { background: #d2d2d7; color: var(--text-secondary); }
   .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
   .actions button {
     padding: 5px 12px;
     font-size: 12px;
-    border-radius: 5px;
+    border-radius: var(--radius);
     cursor: pointer;
     font-family: inherit;
-    border: 1px solid #d2d2d7;
-    background: #fff;
+    border: 1px solid var(--border);
+    background: var(--surface);
     color: inherit;
   }
-  .actions button.primary { background: #007aff; color: white; border-color: #007aff; }
-  .actions button.primary:hover:not(:disabled) { background: #0051d5; }
-  .actions button.cancel:hover:not(:disabled) { background: #f5f5f7; }
+  .actions button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .actions button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .actions button.cancel:hover:not(:disabled) { background: var(--surface-2); }
   .actions button:disabled { opacity: 0.6; cursor: default; }
-  .err { color: #ff3b30; font-size: 12px; padding: 6px 8px; background: rgba(255, 59, 48, 0.08); border-radius: 4px; }
-  @media (prefers-color-scheme: dark) {
-    .modal { background: #2c2c2e; }
-    input[type="text"] { background: #1d1d1f; border-color: #3a3a3c; color: #f5f5f7; }
-    code { background: #3a3a3c; }
-    label.row { border-color: #3a3a3c; }
-    label.row .env { color: #f5f5f7; }
-    .status-ref, .status-empty { background: #3a3a3c; color: #98989d; }
-    .actions button { background: #3a3a3c; border-color: #3a3a3c; color: #f5f5f7; }
-    .actions button:hover:not(:disabled) { background: #48484a; }
-    .actions button.primary { background: #0a84ff; border-color: #0a84ff; color: white; }
-  }
-</style>
+  .err { color: var(--danger); font-size: 12px; padding: 6px 8px; background: rgba(255, 59, 48, 0.08); border-radius: var(--radius-sm); }
+  </style>

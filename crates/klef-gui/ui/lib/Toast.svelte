@@ -13,25 +13,20 @@
 <style>
   .toast {
     position: absolute;
-    bottom: 16px;
+    bottom: 14px;
     left: 50%;
     transform: translateX(-50%);
-    padding: 8px 14px;
-    background: #1d1d1f;
-    color: white;
-    border-radius: 6px;
+    padding: 7px 14px;
+    background: var(--text);
+    color: #fff;
+    border-radius: var(--radius);
     font-size: 12px;
+    font-weight: 500;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s;
+    transition: opacity 120ms;
+    box-shadow: var(--shadow);
+    white-space: nowrap;
   }
-  .toast.show {
-    opacity: 0.95;
-  }
-  @media (prefers-color-scheme: dark) {
-    .toast {
-      background: #f5f5f7;
-      color: #1d1d1f;
-    }
-  }
+  .toast.show { opacity: 0.95; }
 </style>

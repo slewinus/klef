@@ -70,18 +70,18 @@
   }
   p {
     margin: 0 0 10px;
-    color: #6e6e73;
+    color: var(--text-secondary);
   }
   ol {
     margin: 0 0 12px;
     padding-left: 20px;
-    color: #1d1d1f;
+    color: var(--text);
   }
   ol li {
     margin-bottom: 4px;
   }
   code {
-    background: #e5e5ea;
+    background: var(--surface-2);
     padding: 1px 4px;
     border-radius: 3px;
   }
@@ -93,22 +93,15 @@
   button {
     padding: 5px 12px;
     font-size: 12px;
-    border-radius: 5px;
+    border-radius: var(--radius);
     cursor: pointer;
     font-family: inherit;
-    border: 1px solid #d2d2d7;
-    background: #fff;
+    border: 1px solid var(--border);
+    background: var(--surface);
     color: inherit;
   }
-  button:hover { background: #f5f5f7; }
-  button.primary { background: #007aff; color: white; border-color: #007aff; }
-  button.primary:hover { background: #0051d5; }
+  button:hover { background: var(--surface-2); }
+  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  button.primary:hover { background: var(--accent-hover); }
   button:disabled { opacity: 0.6; cursor: default; }
-  @media (prefers-color-scheme: dark) {
-    ol { color: #f5f5f7; }
-    code { background: #3a3a3c; }
-    button { background: #3a3a3c; border-color: #3a3a3c; color: #f5f5f7; }
-    button:hover { background: #48484a; }
-    button.primary { background: #0a84ff; border-color: #0a84ff; color: white; }
-  }
-</style>
+  </style>

@@ -1,3 +1,42 @@
+/* Design tokens — Raycast-inspired light theme */
+:root {
+  /* Surfaces */
+  --surface: #ffffff;
+  --surface-2: #f5f5f7;
+  --surface-3: #ebebee;
+  --hover: rgba(0, 0, 0, 0.04);
+  --hover-strong: rgba(0, 0, 0, 0.06);
+
+  /* Borders */
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.12);
+
+  /* Text */
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #98989d;
+
+  /* Accent (Apple blue, conservative for a security tool) */
+  --accent: #007aff;
+  --accent-hover: #0051d5;
+  --accent-bg: rgba(0, 122, 255, 0.1);
+
+  /* Status */
+  --danger: #ff3b30;
+  --danger-bg: rgba(255, 59, 48, 0.1);
+  --success: #34c759;
+  --warning: #ff9500;
+
+  /* Radius / shadow */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+
+  /* Type */
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -10,32 +49,37 @@ body {
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   font-size: 13px;
-  color: #1d1d1f;
-  background: #f5f5f7;
+  color: var(--text);
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Modals use position: absolute relative to body — `position: fixed` is
-   unreliable on Tauri's macOS webview.
-   The Svelte app mounts inside #app (not directly in body), so the
-   grid layout that constrains <main> lives on #app, not on body. */
 body {
   position: relative;
   overflow: hidden;
 }
+
 #app {
   height: 100%;
   display: grid;
   grid-template-rows: auto 1fr;
 }
+
 main {
   min-height: 0;
   overflow-y: auto;
+  /* Hide the native scrollbar — Raycast pattern */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
-
-@media (prefers-color-scheme: dark) {
-  html,
-  body {
-    color: #f5f5f7;
-    background: #1d1d1f;
-  }
+main::-webkit-scrollbar {
+  width: 6px;
+}
+main::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+main::-webkit-scrollbar-track {
+  background: transparent;
 }

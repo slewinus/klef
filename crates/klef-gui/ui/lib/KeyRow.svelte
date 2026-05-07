@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { KeyDto } from "./types";
+  import { Copy, Pencil, Trash2 } from "lucide-svelte";
 
   interface Props {
     key: KeyDto;
@@ -7,22 +8,19 @@
     onCopy: (key: KeyDto) => void | Promise<void>;
     onEdit: (key: KeyDto) => void;
     onDelete: (key: KeyDto) => void;
-    onSelect?: (key: KeyDto) => void;
   }
 
-  let { key, selected = false, onCopy, onEdit, onDelete, onSelect }: Props = $props();
+  let { key, selected = false, onCopy, onEdit, onDelete }: Props = $props();
   let copying = $state(false);
   let rowEl: HTMLDivElement;
 
-  // When the parent flips `selected` to true, scroll the row into view so
-  // arrow-key navigation past the visible window still tracks visually.
   $effect(() => {
     if (selected) {
       rowEl?.scrollIntoView({ block: "nearest" });
     }
   });
 
-  async function handleClick() {
+  async function handleCopy() {
     copying = true;
     try {
       await onCopy(key);
@@ -33,37 +31,30 @@
 </script>
 
 <div class="row" class:selected bind:this={rowEl}>
-  <div>
+  <div class="info">
     <div class="name">{key.name}</div>
     <div class="meta">
-      <span>{key.env_var}</span>
+      <span class="env">{key.env_var}</span>
       {#if key.tags && key.tags.length}
-        <span class="sep">·</span>
         {#each key.tags as tag (tag)}
           <span class="tag">{tag}</span>
         {/each}
       {/if}
     </div>
   </div>
-  <div class="row-actions">
-    <button class="copy" onclick={handleClick} disabled={copying}>
-      {copying ? "…" : "Copy"}
+  <div class="actions">
+    <button class="action copy" onclick={handleCopy} disabled={copying} aria-label="Copy {key.name}" title="Copy">
+      {#if copying}
+        <span class="dots">…</span>
+      {:else}
+        <Copy size={13} />
+      {/if}
     </button>
-    <button
-      class="icon-btn edit"
-      onclick={() => onEdit(key)}
-      aria-label="Edit {key.name}"
-      title="Edit"
-    >
-      ✎
+    <button class="action" onclick={() => onEdit(key)} aria-label="Edit {key.name}" title="Edit">
+      <Pencil size={13} />
     </button>
-    <button
-      class="icon-btn delete"
-      onclick={() => onDelete(key)}
-      aria-label="Delete {key.name}"
-      title="Delete"
-    >
-      ×
+    <button class="action danger" onclick={() => onDelete(key)} aria-label="Delete {key.name}" title="Delete">
+      <Trash2 size={13} />
     </button>
   </div>
 </div>
@@ -73,96 +64,94 @@
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    background: #fff;
-    border: 1px solid #d2d2d7;
-    border-radius: 6px;
-    margin-bottom: 6px;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: var(--radius);
+    cursor: default;
+    transition: background 80ms;
+  }
+  .row:hover {
+    background: var(--hover);
   }
   .row.selected {
-    border-color: #007aff;
-    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+    background: var(--accent-bg);
   }
+  .info { min-width: 0; }
   .name {
     font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .meta {
-    color: #6e6e73;
-    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin-top: 2px;
+    overflow: hidden;
   }
-  .sep {
-    margin: 0 4px;
-    color: #c7c7cc;
+  .env {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .tag {
-    display: inline-block;
+    font-size: 10px;
     padding: 1px 6px;
-    background: #e5e5ea;
-    border-radius: 3px;
-    margin-right: 4px;
-    font-size: 11px;
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    border-radius: 999px;
+    line-height: 1.4;
+    flex-shrink: 0;
   }
-  .row-actions {
+  .actions {
     display: flex;
-    gap: 4px;
+    gap: 1px;
+    opacity: 0;
+    transition: opacity 80ms;
   }
-  button {
-    padding: 4px 10px;
-    font-size: 12px;
+  .row:hover .actions,
+  .row.selected .actions {
+    opacity: 1;
+  }
+  .action {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--text-secondary);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-family: inherit;
+    transition: background 80ms, color 80ms;
   }
-  .copy {
-    background: #007aff;
-    color: white;
+  .action:hover {
+    background: var(--hover-strong);
+    color: var(--text);
   }
-  .copy:hover {
-    background: #0051d5;
+  .action.copy:hover {
+    background: var(--accent-bg);
+    color: var(--accent);
   }
-  .copy:disabled {
-    background: #c7c7cc;
+  .action.danger:hover {
+    background: var(--danger-bg);
+    color: var(--danger);
+  }
+  .action:disabled {
+    opacity: 0.5;
     cursor: default;
   }
-  .icon-btn {
-    background: transparent;
-    color: #6e6e73;
-    padding: 4px 8px;
+  .dots {
     font-size: 14px;
     line-height: 1;
-  }
-  .edit:hover {
-    background: rgba(0, 122, 255, 0.12);
-    color: #007aff;
-  }
-  .delete {
-    font-size: 16px;
-  }
-  .delete:hover {
-    background: rgba(255, 59, 48, 0.12);
-    color: #ff3b30;
-  }
-  @media (prefers-color-scheme: dark) {
-    .row {
-      background: #2c2c2e;
-      border-color: #3a3a3c;
-    }
-    .row.selected {
-      border-color: #0a84ff;
-      box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.3);
-    }
-    .meta {
-      color: #98989d;
-    }
-    .tag {
-      background: #3a3a3c;
-      color: #f5f5f7;
-    }
-    .sep {
-      color: #48484a;
-    }
   }
 </style>
