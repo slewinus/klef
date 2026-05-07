@@ -109,7 +109,7 @@
   .modal {
     position: absolute;
     inset: 12px;
-    background: #fff;
+    background: var(--surface);
     border-radius: 8px;
     padding: 14px;
     z-index: 11;
@@ -120,41 +120,34 @@
     overflow-y: auto;
   }
   h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
-  label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #6e6e73; }
+  label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-secondary); }
   label.checkbox { flex-direction: row; align-items: center; gap: 6px; font-size: 12px; color: inherit; }
   label.checkbox input { width: auto; padding: 0; }
-  small { color: #98989d; font-size: 10px; margin-top: 2px; }
+  small { color: var(--text-tertiary); font-size: 10px; margin-top: 2px; }
   input {
     padding: 5px 8px;
     font-size: 13px;
-    border: 1px solid #d2d2d7;
-    border-radius: 5px;
-    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
     color: inherit;
     font-family: inherit;
     outline: none;
   }
-  input:focus { border-color: #007aff; box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2); }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2); }
   .actions { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
   .spacer { flex: 1; }
   .actions button {
     padding: 5px 12px;
     font-size: 12px;
-    border-radius: 5px;
+    border-radius: var(--radius);
     cursor: pointer;
     font-family: inherit;
-    border: 1px solid #d2d2d7;
-    background: #fff;
+    border: 1px solid var(--border);
+    background: var(--surface);
     color: inherit;
   }
-  .actions button.primary { background: #007aff; color: white; border-color: #007aff; }
-  .actions button.primary:hover { background: #0051d5; }
-  .actions button.cancel:hover { background: #f5f5f7; }
-  @media (prefers-color-scheme: dark) {
-    .modal { background: #2c2c2e; }
-    input { background: #1d1d1f; border-color: #3a3a3c; color: #f5f5f7; }
-    .actions button { background: #3a3a3c; border-color: #3a3a3c; color: #f5f5f7; }
-    .actions button:hover { background: #48484a; }
-    .actions button.primary { background: #0a84ff; border-color: #0a84ff; color: white; }
-  }
-</style>
+  .actions button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .actions button.primary:hover { background: var(--accent-hover); }
+  .actions button.cancel:hover { background: var(--surface-2); }
+  </style>

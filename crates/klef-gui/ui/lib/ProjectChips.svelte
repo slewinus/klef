@@ -52,45 +52,29 @@
   .chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-    padding: 4px 0 0;
+    gap: 3px;
   }
   .chip {
     padding: 2px 8px;
     font-size: 11px;
-    background: transparent;
-    color: #6e6e73;
-    border: 1px solid #d2d2d7;
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    border: none;
     border-radius: 999px;
     cursor: pointer;
     font-family: inherit;
+    transition: background 80ms, color 80ms;
   }
   .chip:hover {
-    background: #f5f5f7;
+    background: var(--surface-3);
+    color: var(--text);
   }
   .chip.active {
-    background: #007aff;
-    border-color: #007aff;
-    color: white;
+    background: var(--accent);
+    color: #fff;
   }
   .chip.active:hover {
-    background: #0051d5;
-  }
-  @media (prefers-color-scheme: dark) {
-    .chip {
-      color: #98989d;
-      border-color: #3a3a3c;
-    }
-    .chip:hover {
-      background: #3a3a3c;
-    }
-    .chip.active {
-      background: #0a84ff;
-      border-color: #0a84ff;
-      color: white;
-    }
-    .chip.active:hover {
-      background: #0066cc;
-    }
+    background: var(--accent-hover);
+    color: #fff;
   }
 </style>

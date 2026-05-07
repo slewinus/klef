@@ -20,6 +20,7 @@
   import type { KeyDto } from "./lib/types";
   import KeychainAccessHelp from "./lib/KeychainAccessHelp.svelte";
   import Modals from "./lib/Modals.svelte";
+  import { Pin, PinOff, Plus, Settings as SettingsIcon } from "lucide-svelte";
   import KeyRow from "./lib/KeyRow.svelte";
   import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
@@ -200,11 +201,20 @@
   <div class="title-row">
     <div class="title">klef</div>
     <div class="header-actions">
-      <button class="hdr-btn" class:active={pinned} onclick={() => (pinned = !pinned)} title={pinned ? "Unpin" : "Pin (keeps popover open)"}>
-        {pinned ? "📍" : "📌"}
+      <button
+        class="hdr-btn"
+        class:active={pinned}
+        onclick={() => (pinned = !pinned)}
+        title={pinned ? "Unpin (auto-hide on)" : "Pin (keeps popover open)"}
+      >
+        {#if pinned}<PinOff size={14} />{:else}<Pin size={14} />{/if}
       </button>
-      <button class="hdr-btn" onclick={() => (showSettings = true)} title="Settings">⚙</button>
-      <button class="hdr-btn primary" onclick={() => (showAddModal = true)} title="Add key">+</button>
+      <button class="hdr-btn" onclick={() => (showSettings = true)} title="Settings">
+        <SettingsIcon size={14} />
+      </button>
+      <button class="hdr-btn primary" onclick={() => (showAddModal = true)} title="Add key">
+        <Plus size={14} />
+      </button>
     </div>
   </div>
   <SearchBar bind:this={searchBar} bind:value={query} />
@@ -235,13 +245,8 @@
     </div>
   {:else}
     {#each visibleKeys as key, i (key.name)}
-      <KeyRow
-        {key}
-        selected={i === selectedIndex}
-        onCopy={handleCopy}
-        onEdit={(k) => (editTarget = k)}
-        onDelete={(k) => (pendingDelete = k)}
-      />
+      <KeyRow {key} selected={i === selectedIndex} onCopy={handleCopy}
+        onEdit={(k) => (editTarget = k)} onDelete={(k) => (pendingDelete = k)} />
     {/each}
   {/if}
 </main>
@@ -266,34 +271,29 @@
 />
 
 <style>
-  header { padding: 10px 12px 8px; background: #fff; border-bottom: 1px solid #d2d2d7; display: flex; flex-direction: column; gap: 6px; }
+  header {
+    padding: 10px 12px 6px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
   .title-row { display: flex; align-items: center; justify-content: space-between; }
-  .title { font-weight: 600; font-size: 13px; }
-  .header-actions { display: flex; gap: 4px; }
+  .title { font-weight: 700; font-size: 13px; letter-spacing: -0.01em; }
+  .header-actions { display: flex; gap: 2px; }
   .hdr-btn {
-    width: 22px; height: 22px; padding: 0;
-    background: transparent; color: #6e6e73;
-    border: 1px solid transparent; border-radius: 4px;
-    cursor: pointer; font-size: 14px; line-height: 1; font-family: inherit;
+    width: 26px; height: 26px; padding: 0;
+    background: transparent; color: var(--text-secondary);
+    border: none; border-radius: var(--radius-sm);
+    cursor: pointer; font-family: inherit;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background 80ms, color 80ms;
   }
-  .hdr-btn:hover { background: #f5f5f7; color: #1d1d1f; }
-  .hdr-btn.active { background: #ffe5b3; color: #8a4500; }
-  .hdr-btn.primary { background: #007aff; color: white; font-size: 16px; border-color: #007aff; }
-  .hdr-btn.primary:hover { background: #0051d5; color: white; }
-  @media (prefers-color-scheme: dark) {
-    .hdr-btn { color: #98989d; }
-    .hdr-btn:hover { background: #3a3a3c; color: #f5f5f7; }
-    .hdr-btn.primary { background: #0a84ff; border-color: #0a84ff; }
-    .hdr-btn.primary:hover { background: #0066cc; }
-  }
-  main { padding: 8px; }
-  .empty { padding: 24px; color: #6e6e73; text-align: center; }
-  .err { color: #ff3b30; padding: 16px; font-size: 12px; }
-  code { background: #e5e5ea; padding: 1px 4px; border-radius: 3px; }
-  strong { color: #1d1d1f; }
-  @media (prefers-color-scheme: dark) {
-    header { background: #2c2c2e; border-bottom-color: #3a3a3c; }
-    code { background: #3a3a3c; }
-    strong { color: #f5f5f7; }
-  }
+  .hdr-btn:hover { background: var(--hover); color: var(--text); }
+  .hdr-btn.active { background: var(--accent-bg); color: var(--accent); }
+  .hdr-btn.primary { background: var(--accent); color: #fff; }
+  .hdr-btn.primary:hover { background: var(--accent-hover); }
+  main { padding: 6px; }
+  .empty { padding: 32px 16px; color: var(--text-secondary); text-align: center; font-size: 12px; line-height: 1.5; }
+  .err { color: var(--danger); padding: 16px; font-size: 12px; }
+  code { background: var(--surface-2); padding: 1px 5px; border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 11px; }
+  strong { color: var(--text); font-weight: 600; }
 </style>

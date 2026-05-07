@@ -171,7 +171,7 @@
   .modal {
     position: absolute;
     inset: 12px;
-    background: #fff;
+    background: var(--surface);
     border-radius: 8px;
     padding: 14px;
     z-index: 11;
@@ -191,20 +191,20 @@
     flex-direction: column;
     gap: 3px;
     font-size: 11px;
-    color: #6e6e73;
+    color: var(--text-secondary);
   }
   input {
     padding: 5px 8px;
     font-size: 13px;
-    border: 1px solid #d2d2d7;
-    border-radius: 5px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     color: inherit;
-    background: #fff;
+    background: var(--surface);
     font-family: inherit;
     outline: none;
   }
   input:focus {
-    border-color: #007aff;
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
   }
   .value-input {
@@ -219,13 +219,13 @@
     font-size: 11px;
     background: transparent;
     color: #007aff;
-    border: 1px solid #d2d2d7;
-    border-radius: 5px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     cursor: pointer;
     font-family: inherit;
   }
   .reveal:hover {
-    background: #f5f5f7;
+    background: var(--surface-2);
   }
   .actions {
     display: flex;
@@ -236,63 +236,33 @@
   .actions button {
     padding: 5px 12px;
     font-size: 12px;
-    border-radius: 5px;
+    border-radius: var(--radius);
     cursor: pointer;
     font-family: inherit;
-    border: 1px solid #d2d2d7;
-    background: #fff;
+    border: 1px solid var(--border);
+    background: var(--surface);
     color: inherit;
   }
   .actions button.primary {
-    background: #007aff;
+    background: var(--accent);
     color: white;
-    border-color: #007aff;
+    border-color: var(--accent);
   }
   .actions button.primary:hover:not(:disabled) {
-    background: #0051d5;
+    background: var(--accent-hover);
   }
   .actions button.cancel:hover:not(:disabled) {
-    background: #f5f5f7;
+    background: var(--surface-2);
   }
   .actions button:disabled {
     opacity: 0.6;
     cursor: default;
   }
   .err {
-    color: #ff3b30;
+    color: var(--danger);
     font-size: 12px;
     padding: 6px 8px;
     background: rgba(255, 59, 48, 0.08);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
   }
-  @media (prefers-color-scheme: dark) {
-    .modal {
-      background: #2c2c2e;
-    }
-    input {
-      background: #1d1d1f;
-      border-color: #3a3a3c;
-      color: #f5f5f7;
-    }
-    .reveal {
-      border-color: #3a3a3c;
-      color: #0a84ff;
-    }
-    .reveal:hover {
-      background: #3a3a3c;
-    }
-    .actions button {
-      background: #3a3a3c;
-      border-color: #3a3a3c;
-      color: #f5f5f7;
-    }
-    .actions button:hover:not(:disabled) {
-      background: #48484a;
-    }
-    .actions button.primary {
-      background: #0a84ff;
-      border-color: #0a84ff;
-      color: white;
-    }
-  }
-</style>
+  </style>

@@ -81,7 +81,7 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: #fff;
+    background: var(--surface);
     border-radius: 8px;
     padding: 14px 16px;
     z-index: 11;
@@ -96,7 +96,7 @@
   p {
     margin: 0 0 12px;
     font-size: 13px;
-    color: #6e6e73;
+    color: var(--text-secondary);
   }
   .actions {
     display: flex;
@@ -106,52 +106,31 @@
   button {
     padding: 5px 12px;
     font-size: 12px;
-    border-radius: 5px;
+    border-radius: var(--radius);
     cursor: pointer;
     font-family: inherit;
-    border: 1px solid #d2d2d7;
-    background: #fff;
+    border: 1px solid var(--border);
+    background: var(--surface);
     color: inherit;
   }
   button.primary {
-    background: #007aff;
+    background: var(--accent);
     color: white;
-    border-color: #007aff;
+    border-color: var(--accent);
   }
   button.danger {
     background: #ff3b30;
     color: white;
-    border-color: #ff3b30;
+    border-color: var(--danger);
   }
   button.danger:hover:not(:disabled) {
     background: #d70015;
   }
   button.cancel:hover:not(:disabled) {
-    background: #f5f5f7;
+    background: var(--surface-2);
   }
   button:disabled {
     opacity: 0.6;
     cursor: default;
   }
-  @media (prefers-color-scheme: dark) {
-    .modal {
-      background: #2c2c2e;
-    }
-    p {
-      color: #98989d;
-    }
-    button {
-      background: #3a3a3c;
-      border-color: #3a3a3c;
-      color: #f5f5f7;
-    }
-    button:hover:not(:disabled) {
-      background: #48484a;
-    }
-    button.danger {
-      background: #ff453a;
-      border-color: #ff453a;
-      color: white;
-    }
-  }
-</style>
+  </style>
