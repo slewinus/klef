@@ -30,7 +30,15 @@ Restart Claude Desktop. Ask "list my klef keys" — you should see metadata. Ask
 
 ## Policy file
 
-Path: `~/.config/klef/mcp-policy.toml`. First run writes a commented skeleton; edit it to enable `klef_run`.
+Path resolves via [`dirs::config_dir()`](https://docs.rs/dirs/latest/dirs/fn.config_dir.html), which is OS-dependent:
+
+| OS | Path |
+|---|---|
+| Linux | `~/.config/klef/mcp-policy.toml` |
+| macOS | `~/Library/Application Support/klef/mcp-policy.toml` |
+| Windows | `%APPDATA%\klef\mcp-policy.toml` |
+
+First run writes a commented skeleton; edit it to enable `klef_run`. Override with `klef mcp --policy <PATH>`.
 
 ```toml
 workspace_roots = ["/Users/oscarr/Desktop", "/Users/oscarr/code"]
@@ -51,7 +59,7 @@ Matching rules:
 
 ## Audit log
 
-Every call (allow or deny) writes one NDJSON entry to `~/.config/klef/audit.log`. If the log can't be written, the call is denied (fail-closed). No internal rotation — manage with `logrotate` if you keep it forever.
+Every call (allow or deny) writes one NDJSON entry to `<config-dir>/klef/audit.log` (same OS-dependent base as the policy file above — e.g., `~/Library/Application Support/klef/audit.log` on macOS, `~/.config/klef/audit.log` on Linux). Allow paths emit two records: `phase: "started"` (pre-spawn, the fail-closed gate) and `phase: "completed"` (post-spawn, observability). If the started record can't be written, the call is denied and the child is not spawned. No internal rotation — manage with `logrotate` if you keep it forever.
 
 ## Policy gotchas
 
