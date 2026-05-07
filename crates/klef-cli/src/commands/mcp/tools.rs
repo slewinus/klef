@@ -147,7 +147,12 @@ pub async fn klef_list(ctx: &Ctx, input: ListInput) -> Result<Vec<ListEntry>, To
 /// # Errors
 /// `Policy` on denial; `EnvRefNotFound` if a key is missing; `Audit` on
 /// pre-spawn audit-write failure (fail-closed); `Internal` for spawn issues.
-pub async fn klef_run(ctx: &Ctx, input: RunInput) -> Result<RunOutput, ToolError> {
+pub async fn klef_run(ctx: &Ctx, mut input: RunInput) -> Result<RunOutput, ToolError> {
+    // Per spec: empty workspace_roots ⇒ ignore client-supplied cwd entirely.
+    if ctx.policy.workspace_roots.is_empty() {
+        input.cwd = None;
+    }
+
     // 1. Validate timeout up front.
     let timeout_ms = input.timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS);
     if timeout_ms > HARDCAP_TIMEOUT_MS {

@@ -122,6 +122,34 @@ async fn klef_run_allow_redacts_secret() {
 }
 
 #[tokio::test]
+async fn klef_run_empty_workspace_roots_ignores_client_cwd() {
+    let toml = r#"
+        workspace_roots = []
+        [[allow]]
+        argv = ["pwd"]
+        env_refs = []
+    "#;
+    let (ctx, _tmp) = ctx_for_tests(toml);
+    let out = klef_run(
+        &ctx,
+        RunInput {
+            argv: vec!["pwd".into()],
+            env_refs: vec![],
+            cwd: Some("/etc".into()),
+            timeout_ms: Some(5000),
+        },
+    )
+    .await
+    .expect("allow path must succeed");
+    // Process inherited the klef mcp cwd, NOT /etc.
+    assert!(
+        !out.stdout.contains("/etc"),
+        "cwd must not be /etc; got {:?}",
+        out.stdout
+    );
+}
+
+#[tokio::test]
 async fn klef_run_deny_audit_recorded() {
     let (ctx, tmp) = ctx_for_tests("");
     let _ = klef_run(
