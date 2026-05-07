@@ -1,5 +1,5 @@
 //! Policy file: TOML schema, parsing, and a skeleton-on-first-run helper.
-//! Matching and evaluation logic is added in subsequent tasks.
+//! Matching uses token-level globs; evaluation is in `Policy::evaluate`.
 
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -101,8 +101,30 @@ pub fn argv_matches(pattern: &[String], argv: &[&str]) -> bool {
 }
 
 const SHELL_DENYLIST: &[&str] = &[
-    "sh", "bash", "zsh", "fish", "dash", "ksh", "csh", "tcsh", "ash", "python", "python3", "ruby",
-    "perl", "lua", "awk", "node", "deno", "bun", "eval", "exec", "env",
+    "sh",
+    "bash",
+    "zsh",
+    "fish",
+    "dash",
+    "ksh",
+    "csh",
+    "tcsh",
+    "ash",
+    "python",
+    "python3",
+    "ruby",
+    "perl",
+    "lua",
+    "awk",
+    "node",
+    "deno",
+    "bun",
+    "pwsh",
+    "powershell",
+    "osascript",
+    "eval",
+    "exec",
+    "env",
 ];
 
 /// True if `argv0` resolves to one of the hard-coded shell-or-interpreter

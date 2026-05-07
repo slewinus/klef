@@ -239,3 +239,11 @@ fn evaluate_picks_first_covering_rule() {
         }
     );
 }
+
+#[test]
+fn shell_denylist_includes_cross_platform_shells() {
+    for name in ["pwsh", "powershell", "osascript"] {
+        assert!(is_shell_program(name), "{name} must be denied");
+    }
+    assert!(is_shell_program("/usr/bin/osascript"));
+}

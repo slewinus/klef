@@ -114,7 +114,7 @@ pub async fn spawn_and_capture(req: ProcRequest) -> Result<ProcResult, ProcError
         Err(_) => {
             #[cfg(unix)]
             if let Some(pgid) = pgid {
-                kill_group(pgid);
+                kill_group(pgid).await;
             }
             None
         }
@@ -159,16 +159,15 @@ async fn read_capped<R: AsyncReadExt + Unpin>(mut r: R, cap: usize) -> (Vec<u8>,
 }
 
 #[cfg(unix)]
-fn kill_group(pgid: i32) {
+async fn kill_group(pgid: i32) {
     // SAFETY: killpg() is signal-safe and only signals the dedicated session
-    // we created via setsid() in pre_exec. Sleep on a thread is fine because
-    // the caller is in an async context but kill_group() is invoked from
-    // the timeout-handling branch where blocking briefly is acceptable.
+    // we created via setsid() in pre_exec. Sleep is async to avoid blocking
+    // a tokio worker between SIGTERM and SIGKILL.
     #[allow(unsafe_code)]
     unsafe {
         libc::killpg(pgid, libc::SIGTERM);
     }
-    std::thread::sleep(Duration::from_secs(2));
+    tokio::time::sleep(Duration::from_secs(2)).await;
     #[allow(unsafe_code)]
     unsafe {
         libc::killpg(pgid, libc::SIGKILL);

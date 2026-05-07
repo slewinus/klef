@@ -91,27 +91,34 @@ async fn klef_run_deny_no_rule_match() {
 async fn klef_run_allow_redacts_secret() {
     let toml = r#"
         [[allow]]
-        argv = ["printenv", "STRIPE_KEY"]
+        argv = ["printenv", "stripe"]
         env_refs = ["stripe"]
     "#;
     let (ctx, _tmp) = ctx_for_tests(toml);
-    let r = klef_run(
+    let out = klef_run(
         &ctx,
         RunInput {
-            argv: vec!["printenv".into(), "STRIPE_KEY".into()],
+            argv: vec!["printenv".into(), "stripe".into()],
             env_refs: vec!["stripe".into()],
             cwd: None,
             timeout_ms: Some(5000),
         },
     )
-    .await;
-    if let Ok(out) = r {
-        assert!(
-            !out.stdout.contains("sk_live_abcdefg"),
-            "value must not appear in stdout"
-        );
-    }
-    // Err is acceptable — the assertion is "no leak", not "must succeed".
+    .await
+    .expect("allow path must succeed");
+    assert_eq!(
+        out.exit_code, 0,
+        "printenv should find env var named 'stripe'"
+    );
+    assert!(
+        !out.stdout.contains("sk_live_abcdefg"),
+        "raw secret value must not appear in stdout"
+    );
+    assert!(
+        out.stdout.contains("[REDACTED:stripe]"),
+        "redaction placeholder must appear; got {:?}",
+        out.stdout
+    );
 }
 
 #[tokio::test]
