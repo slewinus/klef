@@ -61,11 +61,20 @@ body {
   position: relative;
   overflow: hidden;
   background: var(--surface);
-  border-radius: 20px;
+  border-radius: 16px;
+  /* `overflow: hidden` would clip rounded children; we already do that
+     elsewhere. The border + shadow give the popover its floating look. */
   border: 1px solid var(--border);
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.18),
     0 2px 8px rgba(0, 0, 0, 0.08);
+}
+/* macOS draws a subtle 1-2px shadow under the menu bar that visually
+   eats the top corners. Inset the html-level container 4px so the
+   top of the popover sits below that shadow zone. */
+#app {
+  border-radius: 16px;
+  overflow: hidden;
 }
 
 #app {

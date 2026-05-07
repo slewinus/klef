@@ -141,7 +141,10 @@ fn place_under_tray(app: &tauri::AppHandle, window: &tauri::WebviewWindow) -> bo
     #[allow(clippy::cast_possible_truncation)]
     let x = (tray_center_x - f64::from(win.width) / 2.0).round() as i32;
     #[allow(clippy::cast_possible_truncation)]
-    let y = (pos.y + size.height + 4.0).round() as i32;
+    // 8px gap from the tray icon — close enough to feel anchored, far
+    // enough that macOS' menu bar shadow doesn't visually flatten the
+    // popover's top rounded corners.
+    let y = (pos.y + size.height + 8.0).round() as i32;
     let _ = window.set_position(tauri::PhysicalPosition::new(x.max(0), y.max(0)));
     true
 }
