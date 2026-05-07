@@ -168,6 +168,14 @@ pub enum Command {
     /// Hidden from --help.
     #[command(name = "_names", hide = true)]
     Names,
+    /// Run an MCP server exposing `klef_list` and `klef_run` over stdio.
+    /// See docs/mcp.md for setup with Claude Desktop / Claude Code.
+    #[cfg(feature = "mcp")]
+    Mcp {
+        /// Path to the policy file. Default: ~/.config/klef/mcp-policy.toml.
+        #[arg(long, value_name = "PATH")]
+        policy: Option<PathBuf>,
+    },
 }
 
 #[derive(Copy, Clone, Debug, clap::ValueEnum)]

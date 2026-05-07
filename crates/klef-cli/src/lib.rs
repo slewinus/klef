@@ -97,5 +97,7 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
         Command::Restore { input, force } => commands::restore::run(&store, &input, force),
         Command::Tags => commands::tags::run(&store),
         Command::Names => commands::names::run(&store),
+        #[cfg(feature = "mcp")]
+        Command::Mcp { policy } => commands::mcp::run(store, policy),
     }
 }
