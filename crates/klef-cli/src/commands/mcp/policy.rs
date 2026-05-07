@@ -136,6 +136,66 @@ pub fn cwd_under_roots(cwd: &Path, roots: &[PathBuf]) -> bool {
     })
 }
 
+#[derive(Debug, Clone)]
+pub struct Request<'a> {
+    pub argv: &'a [String],
+    pub env_refs: &'a [String],
+    pub cwd: Option<&'a Path>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Decision {
+    Allow { matched_rule_index: usize },
+    Deny { reason: DenyReason },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DenyReason {
+    ShellDenylist(String),
+    CwdNotInWorkspaceRoots,
+    NoRuleMatch,
+}
+
+impl Policy {
+    /// Evaluate a request against this policy. First-rule-that-fully-covers wins.
+    #[must_use]
+    pub fn evaluate(&self, req: &Request<'_>) -> Decision {
+        if let Some(prog) = req.argv.first() {
+            if is_shell_program(prog) {
+                return Decision::Deny {
+                    reason: DenyReason::ShellDenylist(prog.clone()),
+                };
+            }
+        } else {
+            return Decision::Deny {
+                reason: DenyReason::NoRuleMatch,
+            };
+        }
+        if let Some(cwd) = req.cwd
+            && !cwd_under_roots(cwd, &self.workspace_roots)
+        {
+            return Decision::Deny {
+                reason: DenyReason::CwdNotInWorkspaceRoots,
+            };
+        }
+        let argv_strs: Vec<&str> = req.argv.iter().map(String::as_str).collect();
+        for (idx, rule) in self.rules.iter().enumerate() {
+            if !argv_matches(&rule.argv, &argv_strs) {
+                continue;
+            }
+            let covers_all_envs = req.env_refs.iter().all(|r| rule.env_refs.contains(r));
+            if covers_all_envs {
+                return Decision::Allow {
+                    matched_rule_index: idx,
+                };
+            }
+        }
+        Decision::Deny {
+            reason: DenyReason::NoRuleMatch,
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "policy_tests.rs"]
 mod tests;

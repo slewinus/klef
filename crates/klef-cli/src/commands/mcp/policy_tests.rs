@@ -156,3 +156,86 @@ fn cwd_under_roots_nonexistent_cwd_is_rejected() {
     let root = tmp.path().to_path_buf();
     assert!(!cwd_under_roots(&root.join("does-not-exist"), &[root]));
 }
+
+fn pol(toml_str: &str) -> Policy {
+    toml::from_str(toml_str).unwrap()
+}
+fn req<'a>(argv: &'a [String], envs: &'a [String]) -> Request<'a> {
+    Request {
+        argv,
+        env_refs: envs,
+        cwd: None,
+    }
+}
+
+#[test]
+fn evaluate_allow_when_argv_and_envs_covered() {
+    let p = pol(r#"
+        [[allow]]
+        argv = ["npm", "start"]
+        env_refs = ["stripe", "anthropic"]
+    "#);
+    let argv = vec!["npm".into(), "start".into()];
+    let envs = vec!["stripe".into()];
+    assert_eq!(
+        p.evaluate(&req(&argv, &envs)),
+        Decision::Allow {
+            matched_rule_index: 0
+        }
+    );
+}
+
+#[test]
+fn evaluate_deny_when_env_not_in_rule() {
+    let p = pol(r#"
+        [[allow]]
+        argv = ["npm", "start"]
+        env_refs = ["stripe"]
+    "#);
+    let argv = vec!["npm".into(), "start".into()];
+    let envs = vec!["openai".into()];
+    assert_eq!(
+        p.evaluate(&req(&argv, &envs)),
+        Decision::Deny {
+            reason: DenyReason::NoRuleMatch
+        }
+    );
+}
+
+#[test]
+fn evaluate_deny_shell_even_if_rule_matches() {
+    let p = pol(r#"
+        [[allow]]
+        argv = ["bash", "-c", "*"]
+        env_refs = ["stripe"]
+    "#);
+    let argv = vec!["bash".into(), "-c".into(), "echo $STRIPE".into()];
+    let envs = vec!["stripe".into()];
+    match p.evaluate(&req(&argv, &envs)) {
+        Decision::Deny {
+            reason: DenyReason::ShellDenylist(s),
+        } => assert_eq!(s, "bash"),
+        other => panic!("expected shell deny, got {other:?}"),
+    }
+}
+
+#[test]
+fn evaluate_picks_first_covering_rule() {
+    let p = pol(r#"
+        [[allow]]
+        argv = ["npm", "start"]
+        env_refs = ["stripe"]
+
+        [[allow]]
+        argv = ["npm", "*"]
+        env_refs = ["stripe", "anthropic"]
+    "#);
+    let argv = vec!["npm".into(), "start".into()];
+    let envs = vec!["stripe".into(), "anthropic".into()];
+    assert_eq!(
+        p.evaluate(&req(&argv, &envs)),
+        Decision::Allow {
+            matched_rule_index: 1
+        }
+    );
+}
