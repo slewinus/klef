@@ -2587,6 +2587,7 @@ dependencies = [
  "dirs 5.0.1",
  "glob",
  "klef-core",
+ "libc",
  "predicates",
  "regex",
  "rmcp",

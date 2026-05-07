@@ -23,8 +23,8 @@ walkdir = "2"
 regex = "1"
 age = { version = "0.11", features = ["armor"] }
 zeroize = "1"
-rmcp   = { version = "0.1", features = ["server"], optional = true }
-tokio  = { version = "1",   features = ["rt-multi-thread", "macros", "process", "io-util", "time", "sync"], optional = true }
+rmcp   = { version = "0.1", features = ["server", "transport-io"], optional = true }
+tokio  = { version = "1",   features = ["rt-multi-thread", "macros", "process", "io-util", "io-std", "time", "sync"], optional = true }
 toml   = { version = "0.8", optional = true }
 glob   = { version = "0.3", optional = true }
 libc   = { version = "0.2", optional = true }
