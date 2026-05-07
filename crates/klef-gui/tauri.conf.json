@@ -10,16 +10,18 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
         "title": "klef",
-        "width": 400,
-        "height": 500,
+        "width": 420,
+        "height": 520,
         "resizable": false,
         "fullscreen": false,
         "decorations": false,
         "transparent": true,
+        "shadow": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": false,
