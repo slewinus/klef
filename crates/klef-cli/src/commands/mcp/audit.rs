@@ -18,6 +18,8 @@ pub struct Entry<'a> {
     pub cwd: Option<&'a str>,
     pub decision: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub phase: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub matched_rule_index: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -112,6 +114,7 @@ mod tests {
                 env_refs: Some(&er),
                 cwd: None,
                 decision: "allow",
+                phase: None,
                 matched_rule_index: Some(0),
                 reason: None,
                 exit_code: Some(0),
@@ -150,6 +153,7 @@ mod tests {
             env_refs: Some(&er),
             cwd: None,
             decision: "allow",
+            phase: None,
             matched_rule_index: Some(0),
             reason: None,
             exit_code: Some(0),

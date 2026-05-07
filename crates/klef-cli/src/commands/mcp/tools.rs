@@ -5,9 +5,12 @@
 //! calls here.
 
 use crate::commands::mcp::audit::{Audit, Entry, now_iso};
-use crate::commands::mcp::policy::{Decision, DenyReason, Policy, Request as PolReq};
+use crate::commands::mcp::policy::{Decision, Policy, Request as PolReq};
 use crate::commands::mcp::redact;
 use crate::commands::mcp::run_proc::{self, DEFAULT_TIMEOUT_MS, HARDCAP_TIMEOUT_MS, ProcRequest};
+use crate::commands::mcp::tools_audit::{
+    format_deny, human_deny, record_completed, record_deny, record_started,
+};
 use klef_core::store::Store;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -122,6 +125,7 @@ pub async fn klef_list(ctx: &Ctx, input: ListInput) -> Result<Vec<ListEntry>, To
             env_refs: None,
             cwd: None,
             decision: "allow",
+            phase: None,
             matched_rule_index: None,
             reason: None,
             exit_code: None,
@@ -142,13 +146,13 @@ pub async fn klef_list(ctx: &Ctx, input: ListInput) -> Result<Vec<ListEntry>, To
 ///
 /// # Errors
 /// `Policy` on denial; `EnvRefNotFound` if a key is missing; `Audit` on
-/// audit-write failure; `Internal` for spawn/runtime issues.
+/// pre-spawn audit-write failure (fail-closed); `Internal` for spawn issues.
 pub async fn klef_run(ctx: &Ctx, input: RunInput) -> Result<RunOutput, ToolError> {
     // 1. Validate timeout up front.
     let timeout_ms = input.timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS);
     if timeout_ms > HARDCAP_TIMEOUT_MS {
         let reason = format!("timeout_exceeds_max:{timeout_ms}");
-        record_deny(ctx, &input, &reason)?;
+        record_deny(&ctx.audit, &input, &reason)?;
         return Err(ToolError::Policy(format!(
             "timeout_ms {timeout_ms} exceeds max {HARDCAP_TIMEOUT_MS}"
         )));
@@ -165,7 +169,7 @@ pub async fn klef_run(ctx: &Ctx, input: RunInput) -> Result<RunOutput, ToolError
         Decision::Allow { matched_rule_index } => matched_rule_index,
         Decision::Deny { reason } => {
             let reason_str = format_deny(&reason);
-            record_deny(ctx, &input, &reason_str)?;
+            record_deny(&ctx.audit, &input, &reason_str)?;
             return Err(ToolError::Policy(human_deny(&reason, &input)));
         }
     };
@@ -182,12 +186,15 @@ pub async fn klef_run(ctx: &Ctx, input: RunInput) -> Result<RunOutput, ToolError
             resolved.push((name.clone(), value));
         } else {
             let reason = format!("env_ref_not_found:{name}");
-            record_deny(ctx, &input, &reason)?;
+            record_deny(&ctx.audit, &input, &reason)?;
             return Err(ToolError::EnvRefNotFound(name.clone()));
         }
     }
 
-    // 4. Spawn the child.
+    // 4. Pre-spawn audit gate: if this fails, NOTHING runs.
+    record_started(&ctx.audit, &input, matched_rule_index)?;
+
+    // 5. Spawn the child.
     let env: HashMap<String, String> = resolved.iter().cloned().collect();
     let proc_req = ProcRequest {
         argv: input.argv.clone(),
@@ -199,34 +206,19 @@ pub async fn klef_run(ctx: &Ctx, input: RunInput) -> Result<RunOutput, ToolError
         .await
         .map_err(|e| ToolError::Internal(e.to_string()))?;
 
-    // 5. Best-effort redaction (mutates buffers in place).
+    // 6. Best-effort redaction (mutates buffers in place).
     redact::redact(&mut result.stdout, &resolved);
     redact::redact(&mut result.stderr, &resolved);
 
-    // 6. UTF-8 vs base64 encoding decision.
+    // 7. UTF-8 vs base64 encoding decision.
     let (stdout_str, stderr_str, encoding) = encode_outputs(&result.stdout, &result.stderr);
 
-    // 7. Audit allow.
-    ctx.audit
-        .record(&Entry {
-            ts: now_iso(),
-            tool: "klef_run",
-            argv: Some(&input.argv),
-            env_refs: Some(&input.env_refs),
-            cwd: input.cwd.as_deref().and_then(|p| p.to_str()),
-            decision: "allow",
-            matched_rule_index: Some(matched_rule_index),
-            reason: None,
-            exit_code: Some(result.exit_code),
-            duration_ms: Some(result.duration_ms),
-            stdout_bytes: Some(result.stdout.len()),
-            stderr_bytes: Some(result.stderr.len()),
-            stdout_truncated: Some(result.stdout_truncated),
-            stderr_truncated: Some(result.stderr_truncated),
-            timed_out: Some(result.timed_out),
-            count_returned: None,
-        })
-        .map_err(|e| ToolError::Audit(e.to_string()))?;
+    // 8. Post-spawn audit. The secret has already flowed; if this write
+    //    fails, log to stderr and continue — failing now is just hiding
+    //    observability.
+    if let Err(e) = record_completed(&ctx.audit, &input, matched_rule_index, &result) {
+        eprintln!("klef mcp: audit completion write failed: {e}");
+    }
 
     Ok(RunOutput {
         exit_code: result.exit_code,
@@ -240,61 +232,11 @@ pub async fn klef_run(ctx: &Ctx, input: RunInput) -> Result<RunOutput, ToolError
     })
 }
 
-fn record_deny(ctx: &Ctx, input: &RunInput, reason: &str) -> Result<(), ToolError> {
-    ctx.audit
-        .record(&Entry {
-            ts: now_iso(),
-            tool: "klef_run",
-            argv: Some(&input.argv),
-            env_refs: Some(&input.env_refs),
-            cwd: input.cwd.as_deref().and_then(|p| p.to_str()),
-            decision: "deny",
-            matched_rule_index: None,
-            reason: Some(reason.to_string()),
-            exit_code: None,
-            duration_ms: None,
-            stdout_bytes: None,
-            stderr_bytes: None,
-            stdout_truncated: None,
-            stderr_truncated: None,
-            timed_out: None,
-            count_returned: None,
-        })
-        .map_err(|e| ToolError::Audit(e.to_string()))
-}
-
-fn format_deny(r: &DenyReason) -> String {
-    match r {
-        DenyReason::ShellDenylist(p) => format!("shell_denylist:{p}"),
-        DenyReason::CwdNotInWorkspaceRoots => "cwd_not_in_workspace_roots".into(),
-        DenyReason::NoRuleMatch => "no_rule_match".into(),
-    }
-}
-
-fn human_deny(r: &DenyReason, input: &RunInput) -> String {
-    match r {
-        DenyReason::ShellDenylist(p) => format!("program '{p}' is on the shell denylist"),
-        DenyReason::CwdNotInWorkspaceRoots => {
-            let p = input
-                .cwd
-                .as_ref()
-                .map(|p| p.display().to_string())
-                .unwrap_or_default();
-            format!("cwd {p:?} is not under any workspace_root")
-        }
-        DenyReason::NoRuleMatch => {
-            format!(
-                "no rule matches argv {:?} with env_refs {:?}",
-                input.argv, input.env_refs
-            )
-        }
-    }
-}
-
 #[path = "tools_encode.rs"]
 mod encode;
-use encode::encode_outputs;
 
 #[cfg(test)]
 #[path = "tools_tests.rs"]
 mod tests;
+
+use encode::encode_outputs;

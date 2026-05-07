@@ -6,6 +6,7 @@ pub mod policy;
 pub mod redact;
 pub mod run_proc;
 pub mod tools;
+pub mod tools_audit;
 
 use crate::commands::mcp::audit::Audit;
 use crate::commands::mcp::tools::{Ctx, ListInput, RunInput};
