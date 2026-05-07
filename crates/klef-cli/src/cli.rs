@@ -2,6 +2,14 @@ use clap::{Parser, Subcommand};
 use clap_complete::Shell;
 use std::path::PathBuf;
 
+#[cfg(target_os = "macos")]
+#[derive(clap::Subcommand)]
+pub enum KeychainAction {
+    /// Disable macOS keychain auto-lock so klef stops prompting for your
+    /// password every time the keychain re-locks.
+    Configure,
+}
+
 #[derive(Parser)]
 #[command(name = "klef", version, about = "Local-first vault for API keys.")]
 pub struct Cli {
@@ -175,6 +183,12 @@ pub enum Command {
         /// Path to the policy file. Default: ~/.config/klef/mcp-policy.toml.
         #[arg(long, value_name = "PATH")]
         policy: Option<PathBuf>,
+    },
+    /// macOS keychain helpers (avoid frequent password prompts).
+    #[cfg(target_os = "macos")]
+    Keychain {
+        #[command(subcommand)]
+        action: KeychainAction,
     },
 }
 
