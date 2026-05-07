@@ -89,6 +89,21 @@ pub fn load(path: &Path) -> Result<Policy, PolicyError> {
     }
 }
 
+/// Match a request argv against a rule's argv pattern.
+///
+/// Each pattern element is a token-level glob (`*` and `?` per `glob::Pattern`).
+/// Length mismatch = no match (no variadic wildcards).
+#[must_use]
+pub fn argv_matches(pattern: &[String], argv: &[&str]) -> bool {
+    if pattern.len() != argv.len() {
+        return false;
+    }
+    pattern
+        .iter()
+        .zip(argv.iter())
+        .all(|(pat, arg)| glob::Pattern::new(pat).is_ok_and(|p| p.matches(arg)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,5 +150,61 @@ env_refs = ["stripe"]
         std::fs::write(&path, "this is = not = toml").unwrap();
         let err = load(&path).unwrap_err();
         assert!(matches!(err, PolicyError::Toml { .. }));
+    }
+
+    #[test]
+    fn argv_matches_exact() {
+        assert!(argv_matches(
+            &["npm".into(), "start".into()],
+            &["npm", "start"]
+        ));
+        assert!(!argv_matches(
+            &["npm".into(), "start".into()],
+            &["npm", "test"]
+        ));
+    }
+
+    #[test]
+    fn argv_matches_wildcard_token() {
+        assert!(argv_matches(
+            &["npm".into(), "run".into(), "*".into()],
+            &["npm", "run", "dev"]
+        ));
+        assert!(argv_matches(
+            &["npm".into(), "run".into(), "*".into()],
+            &["npm", "run", "build:prod"]
+        ));
+        assert!(!argv_matches(
+            &["npm".into(), "run".into(), "*".into()],
+            &["npm", "test"]
+        ));
+    }
+
+    #[test]
+    fn argv_matches_length_mismatch_is_no_match() {
+        assert!(!argv_matches(
+            &["npm".into(), "*".into()],
+            &["npm", "run", "dev"]
+        ));
+    }
+
+    #[test]
+    fn argv_matches_question_mark_token() {
+        assert!(argv_matches(
+            &["cargo".into(), "?est".into()],
+            &["cargo", "test"]
+        ));
+        assert!(!argv_matches(
+            &["cargo".into(), "?est".into()],
+            &["cargo", "build"]
+        ));
+    }
+
+    #[test]
+    fn argv_matches_url_with_path_glob() {
+        assert!(argv_matches(
+            &["curl".into(), "https://api.stripe.com/*".into()],
+            &["curl", "https://api.stripe.com/v1/charges"],
+        ));
     }
 }
