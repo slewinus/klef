@@ -118,10 +118,13 @@
     <input
       bind:value={tagsRaw}
       type="text"
-      placeholder="comma-separated"
+      placeholder="billing, prod, project:my-app"
       autocomplete="off"
       spellcheck="false"
     />
+    <small>
+      Comma-separated. Use <code>project:&lt;name&gt;</code> to make it appear as a chip filter.
+    </small>
   </label>
 
   {#if error}

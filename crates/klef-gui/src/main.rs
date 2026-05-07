@@ -2,6 +2,8 @@
 // but the cfg attribute is harmless on other targets.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod dotenv_import;
+
 use klef_core::{KeyDto, build_store};
 use tauri::{
     Emitter as _, Manager as _,
@@ -11,8 +13,8 @@ use tauri::{
 /// State held by the Tauri runtime: a single `Store` instance shared across
 /// all commands. Initialized on app startup with the production Keychain
 /// backend; backend selection (age) lands in S6 (post-MVP).
-struct AppState {
-    store: klef_core::store::Store,
+pub struct AppState {
+    pub store: klef_core::store::Store,
 }
 
 // Tauri commands receive `State` and `String` by value per the macro contract
@@ -270,22 +272,9 @@ fn main() {
 
             Ok(())
         })
-        .on_window_event(|_window, _event| {
-            // Auto-hide-on-blur is intentionally disabled for v0.1.
-            //
-            // Original intent: clicking outside the popover dismisses it
-            // (standard macOS menu bar utility behavior). But opening a
-            // modal (Add/Edit/Delete) shifts focus inside the webview,
-            // which macOS occasionally reports as a window-level
-            // Focused(false). The popover hides mid-modal-mount, leaving
-            // a frozen-half-rendered black rectangle (the backdrop) in
-            // a state where neither the modal nor the popover responds.
-            //
-            // Trade-off: dismissal is via Escape, re-click on the tray
-            // icon, or ⌘⇧K. A future sprint can restore auto-hide by
-            // suppressing it while a modal is open (e.g. JS emits a
-            // `modal-open`/`modal-closed` event that flips a Rust flag).
-        })
+        // Auto-hide-on-blur lives in JS (lib/popoverLifecycle.ts); checks
+        // anyModalOpen so a modal-mount focus shift doesn't hide mid-render.
+        .on_window_event(|_window, _event| {})
         .invoke_handler(tauri::generate_handler![
             list_keys,
             get_key_value,
@@ -293,7 +282,9 @@ fn main() {
             delete_key,
             edit_key,
             record_access,
-            open_keychain_access
+            open_keychain_access,
+            dotenv_import::preview_dotenv_import,
+            dotenv_import::apply_dotenv_import
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -14,14 +14,22 @@ body {
   background: #f5f5f7;
 }
 
-/* Modals use position: absolute relative to body so they cannot escape
-   the webview's viewport. `position: fixed` is unreliable on Tauri's
-   transparent webview on macOS — it sometimes resolves against the
-   screen rather than the window, leaving the modal stranded outside
-   the popover. */
+/* Modals use position: absolute relative to body — `position: fixed` is
+   unreliable on Tauri's macOS webview.
+   The Svelte app mounts inside #app (not directly in body), so the
+   grid layout that constrains <main> lives on #app, not on body. */
 body {
   position: relative;
   overflow: hidden;
+}
+#app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+main {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 @media (prefers-color-scheme: dark) {
