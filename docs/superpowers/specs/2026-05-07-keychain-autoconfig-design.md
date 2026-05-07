@@ -1,181 +1,302 @@
 # macOS Keychain auto-configuration — design
 
-**Status:** Draft
+**Status:** Draft v2 (revised after security review)
 **Date:** 2026-05-07
 
 ## Goal
 
-Eliminate the recurring "type your login password to unlock the keychain" prompts that plague klef users on macOS, without requiring them to discover or run any command.
+Eliminate the recurring "type your login password to unlock the keychain" prompts that plague klef users on macOS, without silently modifying a global system security setting on the user's behalf.
 
 ## The problem
 
-By default macOS does not auto-lock the login keychain — but corporate MDM policies, security-conscious user setups, and some macOS configurations enable a short auto-lock timeout (10–30 min). When the keychain is locked, every klef call (`get`, `show`, `run`, MCP `klef_run`) triggers a system prompt asking for the user's login password.
+By default macOS does not auto-lock the login keychain — but corporate MDM policies, security-conscious user setups, and some macOS configurations enable a short auto-lock timeout (10–30 min). When the keychain is locked, every klef call that reads or writes a value (`get`, `show`, `run`, `import`, `export`, MCP `klef_run`) triggers a system prompt asking for the user's login password.
 
 For a tool whose entire value proposition is "fast, frictionless secret access," this defeats the purpose.
 
+## Design principle: surface, don't mutate
+
+An earlier draft of this spec proposed silently auto-applying the fix on first run. A security review pushed back: modifying a global macOS security setting without explicit user consent is too aggressive, and the proposed opt-out env var is useless to first-run users who don't yet know it exists.
+
+The revised approach:
+- klef **never modifies** the user's login keychain settings on its own.
+- klef **detects** the issue and **surfaces** it via a one-time stderr banner that prints in-context, right when the user is about to be prompted for their password.
+- The banner contains the exact command to fix it (`klef keychain configure`).
+- The user runs the command (or not) — explicit consent is preserved.
+
+This satisfies both the user's "don't make me discover a hidden command" goal (the banner shows the command in-context, unmissable) and the reviewer's "don't silently modify global state" requirement (modification only happens on explicit user action).
+
 ## Non-goals
 
-- Solving the prompt for users on locked-down corporate Macs whose MDM enforces a non-zero timeout. Those users will see klef's auto-config get reverted by MDM at the next sync. Documented limitation; out of scope for klef code.
-- Touching keychain behavior on Linux. Secret Service has different semantics, no analogous fix needed.
-- Replacing the user's login keychain with a dedicated klef keychain. That's a much larger change ("option β3" in the brainstorm) we reject in favor of the simpler global timeout fix.
-- A user-facing `klef doctor` command for keychain diagnostics. Users shouldn't need to discover such a command — the fix should be automatic.
-
-## Threat model considerations
-
-This change disables auto-lock on the user's login keychain, which has security implications:
-
-- **Reduced cost of post-login attack**: an attacker with physical access to the unlocked Mac no longer faces a re-prompt for keychain items. They already have everything else (browser session, files, ssh keys held in agent) — so the marginal increase in attack surface is small.
-- **MDM-enforced timeouts may be there for compliance reasons.** klef's auto-config silently overrides this, which could violate the user's organization's security posture. The opt-out env var (`KLEF_NO_KEYCHAIN_AUTOCONFIG=1`) and the printed revert command provide an escape hatch.
-- **Users who explicitly chose a short timeout** (rare but possible) will see klef revert their setting. The persistence marker (see below) ensures klef only does this once — after that, klef respects whatever the user later sets.
+- Solving the prompt for users on locked-down corporate Macs whose MDM enforces a non-zero timeout. Those users will see klef's fix get reverted by MDM at the next sync. Documented limitation.
+- Touching keychain behavior on Linux. Secret Service has different semantics; no analogous fix.
+- Replacing the user's login keychain with a dedicated klef keychain.
+- A `klef doctor` umbrella command. We focus on a single targeted command.
+- A `klef keychain status` or `klef keychain revert` subcommand in v1. The applied state is observable via the marker file and via `security show-keychain-info`; revert is achieved by running the precise command klef prints at apply time. We can add these subcommands later if user feedback demands them.
 
 ## Architecture
 
-A small new module in `klef-cli`: `crates/klef-cli/src/macos_keychain.rs`. Plataform-gated to compile only on macOS; on Linux the module body is empty.
+Three layers:
 
-Public surface:
+1. **`klef-core::macos_keychain`** — gated `#[cfg(target_os = "macos")]`. Pure data and shell-out operations. UI-agnostic.
+2. **`klef-cli`** — uses (1) for the `klef keychain configure` subcommand and the one-time banner.
+3. **`klef-gui`** — uses (1) for a "Fix Keychain prompts" settings button. UI design out of scope of this spec; the spec only ensures the core helpers are reachable from the GUI crate.
+
+### `klef-core::macos_keychain` public API
 
 ```rust
 #[cfg(target_os = "macos")]
-pub fn ensure_configured();
+pub mod macos_keychain {
+    pub struct KeychainStatus {
+        pub path: PathBuf,                  // resolved via `security default-keychain`
+        pub timeout_seconds: Option<u64>,   // None = no-timeout
+        pub lock_on_sleep: bool,
+    }
+
+    pub enum KeychainHelperError { /* I/O + parsing + missing default keychain */ }
+
+    /// Read current login keychain settings.
+    pub fn current_status() -> Result<KeychainStatus, KeychainHelperError>;
+
+    /// True iff `current_status()` indicates settings that won't trigger
+    /// password re-prompts during a session: no timeout AND not lock-on-sleep.
+    pub fn is_already_friendly(s: &KeychainStatus) -> bool;
+
+    /// Apply the friendly settings (no timeout, no lock-on-sleep) by invoking
+    /// `/usr/bin/security set-keychain-settings <path>`. Does NOT touch any
+    /// marker or printing — those are caller concerns.
+    pub fn apply_friendly_settings(s: &KeychainStatus) -> Result<(), KeychainHelperError>;
+
+    /// Build the precise shell command that reverts to the prior state.
+    /// e.g. `security set-keychain-settings -t 600 -l <path>`.
+    pub fn build_revert_command(prev: &KeychainStatus) -> String;
+}
 
 #[cfg(not(target_os = "macos"))]
-pub fn ensure_configured() {} // no-op
+pub mod macos_keychain {} // empty
 ```
 
-Called once in `klef-cli::lib::run()` before the command dispatch:
+The CLI/GUI layers add their own UI (banner text, marker file persistence, subcommand wiring).
+
+### Resolving the keychain path
+
+Hardcoded `~/Library/Keychains/login.keychain-db` is wrong: the user's default keychain may differ. We resolve via:
+
+```
+/usr/bin/security default-keychain
+```
+
+The output is a quoted path on stdout (e.g., `"/Users/oscarr/Library/Keychains/login.keychain-db"`). Strip surrounding quotes, use as the canonical path for all subsequent operations. If `default-keychain` fails or returns unexpected output, the helper returns an error and the CLI/GUI layer handles it (banner shows nothing, subcommand prints the error).
+
+### Shell-out via `/usr/bin/security`
+
+Always invoked with the absolute path `/usr/bin/security` (not via `$PATH`) to avoid surprises from a user-shadowed `security` in their PATH.
+
+Three invocations the helper performs:
+
+| Command | Purpose |
+|---|---|
+| `/usr/bin/security default-keychain` | Resolve the path. |
+| `/usr/bin/security show-keychain-info <path>` | Read current settings. macOS versions vary on stdout vs stderr; helper reads both streams (concatenated) and parses for `no-timeout`, `timeout=Ns`, `lock-on-sleep`. |
+| `/usr/bin/security set-keychain-settings [-t N] [-l] <path>` | Apply settings (no flags = no-timeout + no-lock-on-sleep). |
+
+## CLI: the banner
+
+### Trigger conditions (all must hold)
+
+1. `cfg(target_os = "macos")`.
+2. Effective backend is Keychain (not `--backend age:...`, not the debug-only file backend).
+3. Command will read or write a Keychain value: one of `get`, `show`, `run`, `import`, `export`, `add`, `edit`, `rm`, `set-note`, `rename`, `mcp`. **NOT** triggered for: `list`, `status`, `completions`, `names`, `tags`, `discover`, `backup`, `restore`. (`backup`/`restore` involve all keys but happen rarely; users initiating these have given consent to a heavy operation already, so omitting the banner there is fine.)
+4. `KLEF_NO_KEYCHAIN_AUTOCONFIG` is not set.
+5. Marker file does not exist.
+6. `current_status()` succeeds and `is_already_friendly()` returns false.
+
+If any condition fails: silent, no banner.
+
+### Banner text
+
+```
+klef: heads up — your macOS keychain auto-locks (timeout: 600s, lock-on-sleep: yes).
+      You'll be prompted for your password on every klef call until this is fixed.
+      One-shot fix (modifies macOS Keychain settings, not your klef data):
+          klef keychain configure
+      To suppress this notice without fixing:
+          export KLEF_NO_KEYCHAIN_AUTOCONFIG=1
+```
+
+The exact `timeout: Xs` and `lock-on-sleep: yes/no` values come from `current_status()`.
+
+### Marker after banner
+
+After printing the banner once, klef writes the marker (with `applied: false`) and never prints the banner again unless the user deletes the marker. The marker's role here is *suppress repetitive nagging*, nothing more.
+
+### Trigger placement in code
+
+In `klef-cli/src/lib.rs::run()`, after `build_store(...)` and before the `match cli.command` dispatch:
 
 ```rust
-pub fn run(cli: Cli) -> Result<(), KlefError> {
-    crate::macos_keychain::ensure_configured();
-    let store = klef_core::build_store(cli.backend.as_deref())?;
-    // ... existing dispatch
+#[cfg(target_os = "macos")]
+{
+    if backend_is_keychain(&store) && command_touches_values(&cli.command) {
+        let _ = banner::maybe_show(); // best-effort, never propagates
+    }
 }
 ```
 
-The function is best-effort: it never propagates errors back to `run()`. A failure prints a warning to stderr and returns; klef continues normally.
+Two small predicate functions. `backend_is_keychain` queries the Store's backend description string. `command_touches_values` is a static match on `cli.command` listing the value-touching variants.
 
-## Logic
+For `klef mcp`, the banner is shown at startup if the conditions hold (the user sees it on stderr in Claude Desktop's MCP logs or in the Claude Code session output).
 
-```text
-1. Skip if env var KLEF_NO_KEYCHAIN_AUTOCONFIG is set (any value).
-2. Skip if marker file ~/.config/klef/keychain-configured exists.
-3. Run `security show-keychain-info <login-keychain-path>`.
-4. If the output indicates already-no-timeout AND no lock-on-sleep:
-     - Write the marker (so future runs skip this work).
-     - Return.
-5. Run `security set-keychain-settings <login-keychain-path>` (no flags).
-   - On success: print one-time stderr message (see below), write marker, return.
-   - On failure: print warning to stderr (no marker written, klef will retry next run).
+## CLI: `klef keychain configure`
+
+A new subcommand that applies the fix explicitly.
+
+### CLI shape
+
+```rust
+// In cli.rs
+Keychain {
+    #[command(subcommand)]
+    action: KeychainAction,
+}
+
+enum KeychainAction {
+    /// Disable macOS keychain auto-lock to stop password re-prompts.
+    Configure,
+}
 ```
 
-### Paths
+For v1 only `Configure`. Future `Status` / `Revert` subcommands fit the same shape.
 
-- Login keychain: `~/Library/Keychains/login.keychain-db` (resolved via `dirs::home_dir()`).
-- Marker file: `~/.config/klef/keychain-configured` (under `dirs::config_dir()` per existing klef convention; matches the location of `index.json`).
-
-The marker file is empty. Its existence is the only signal.
-
-### Shell-out via `security`
-
-Two invocations, both via `std::process::Command::new("security")`:
-
-| Command | Purpose | Output we care about |
-|---|---|---|
-| `security show-keychain-info <path>` | Detect current timeout / lock-on-sleep | combined output text containing `no-timeout` or `timeout=Ns`, plus optional `lock-on-sleep` |
-| `security set-keychain-settings <path>` | Apply: remove timeout, remove lock-on-sleep | exit code (0 = success) |
-
-The `security` binary always exists on macOS at `/usr/bin/security`. We rely on `$PATH` resolution.
-
-Note on `show-keychain-info`: macOS versions vary on whether the info goes to stdout or stderr. The parser reads both streams (concatenated) to be robust.
-
-### One-time stderr message on first config
-
-On successful application of the fix:
+### Behavior
 
 ```
-klef: configured macOS keychain to remain unlocked for this session.
-      to revert:    security set-keychain-settings -t 600 ~/Library/Keychains/login.keychain-db
-      to opt out:   export KLEF_NO_KEYCHAIN_AUTOCONFIG=1
+1. cfg(target_os = "macos") only. On Linux: print "this command is macOS-only" and exit non-zero.
+2. Read current_status() — if it errors, print the error and exit non-zero.
+3. If is_already_friendly(): print "macOS keychain is already configured for klef. Nothing to do." Write the marker. Exit 0.
+4. Save current status as `prev` for revert command construction.
+5. Call apply_friendly_settings(). If it errors, print + exit non-zero.
+6. Write the marker with prev state baked in (see below).
+7. Print:
+    "klef: macOS keychain configured. You should no longer be prompted for your password during this login session.
+     To revert: <build_revert_command(prev)>"
+   Exit 0.
 ```
 
-Printed only once (the marker prevents re-printing on subsequent runs).
+## Marker file
 
-On failure:
+Path: `~/.config/klef/keychain-configured` (under `dirs::config_dir()`, matches existing klef convention).
 
+Format: JSON.
+
+After banner shown but no apply:
+```json
+{
+  "applied": false,
+  "banner_shown_at": "2026-05-07T14:23:45Z"
+}
 ```
-klef: could not configure macOS keychain ({error}).
-      you may see frequent password prompts; klef will retry next run.
+
+After `klef keychain configure`:
+```json
+{
+  "applied": true,
+  "configured_at": "2026-05-07T14:23:45Z",
+  "keychain_path": "/Users/oscarr/Library/Keychains/login.keychain-db",
+  "prev_timeout_seconds": 600,
+  "prev_lock_on_sleep": true
+}
 ```
+
+The marker's job is twofold:
+1. Suppress the banner on subsequent runs.
+2. (When `applied: true`) record the prior state so the revert command in the post-apply message is faithful: `security set-keychain-settings -t 600 -l <path>` for the example above.
 
 ## Opt-out
 
-Environment variable `KLEF_NO_KEYCHAIN_AUTOCONFIG`, any value (incl. empty). When set, `ensure_configured()` is a no-op without any side effects (no marker write, no stderr output).
-
-Use cases:
-- Corporate MDM users who don't want klef fighting their policy.
-- Users on locked-down setups who explicitly want short timeouts.
-- CI environments where touching the keychain is undesirable.
-
-## Persistence — the marker file
-
-The marker file at `~/.config/klef/keychain-configured` exists to make `ensure_configured()` idempotent across runs without re-checking `security show-keychain-info` on every klef invocation (avoiding ~5–20 ms of process spawn on every command).
-
-Behavior:
-- **Marker missing**: klef checks current state, applies fix if needed, creates marker on success.
-- **Marker present**: klef skips entirely.
-- **User wants klef to re-run autoconfig**: `rm ~/.config/klef/keychain-configured`. Documented in the failure message and in `docs/troubleshooting.md`.
-
-If the user later re-enables a timeout manually (e.g., via Keychain Access.app), klef does NOT re-fix it — the marker is present, so klef respects the user's later choice.
+`KLEF_NO_KEYCHAIN_AUTOCONFIG` env variable, any value (including empty). When set:
+- The banner is never shown.
+- `klef keychain configure` still works (it's an explicit user action; opt-out is for the *passive surface*, not for forbidding the user from using the explicit command).
 
 ## Failure modes
 
 | Failure | klef behavior |
 |---|---|
-| `security` binary missing or `$PATH` issue | Warning on stderr, no marker, klef continues normally. |
-| `security show-keychain-info` returns unexpected output | Treated as "not yet configured" → tries to set settings (idempotent op). If that fails too, warning + no marker. |
-| `security set-keychain-settings` fails (permissions, missing keychain file, etc.) | Warning on stderr, no marker, klef continues normally. |
-| Marker file write fails (config dir not writable) | Warning on stderr, klef continues. Without the marker, klef will retry next run, which is fine — the underlying setting is already applied. |
-| User running klef as root via `sudo` | The login keychain affected is root's, not the actual user's. Documented gotcha; klef does not detect or refuse this case. |
+| `/usr/bin/security` missing or broken | Helper returns error. Banner code swallows; subcommand prints error and exits non-zero. |
+| `default-keychain` returns no path | Same as above. Banner silently skips; subcommand exits non-zero. |
+| `show-keychain-info` returns unparseable output | Treated as "unknown state" → banner doesn't show; subcommand exits non-zero with the raw error. |
+| `set-keychain-settings` fails (permissions, MDM, etc.) | Subcommand prints error, NO marker written, exit non-zero. |
+| Marker write fails | Best-effort: print warning, but the underlying `security` change has already been applied. The user can re-run the command if they want the marker. |
+| User runs klef as root via `sudo` | Modifies root's keychain, not the user's. Documented gotcha; not detected by code. |
 
 ## Testing
 
-### Unit tests (in `macos_keychain.rs`, gated `#[cfg(target_os = "macos")]`)
+### Unit tests (in `klef-core/src/macos_keychain.rs`, gated `#[cfg(target_os = "macos")]`)
 
-The shell-out is encapsulated behind a trait so tests can mock it:
+The shell-out is encapsulated behind a trait so tests inject mock outputs:
 
 ```rust
 trait SecurityCli {
-    fn show(&self, path: &Path) -> std::io::Result<String>;
-    fn set(&self, path: &Path) -> std::io::Result<()>;
+    fn default_keychain(&self) -> Result<String, KeychainHelperError>;
+    fn show_keychain_info(&self, path: &Path) -> Result<String, KeychainHelperError>;
+    fn set_keychain_settings(&self, path: &Path, timeout: Option<u64>, lock_on_sleep: bool) -> Result<(), KeychainHelperError>;
 }
 ```
 
-Production impl wraps `Command::new("security")`. Test impl is a struct with configurable returns.
+Production impl wraps `Command::new("/usr/bin/security")`. Test impl is a struct with configurable returns. Public functions (`current_status`, `apply_friendly_settings`, etc.) take `impl SecurityCli` so tests can substitute.
 
 Tests:
 
-1. `parse_show_output_detects_no_timeout` — feed the expected `Keychain "..." no-timeout` string, assert `is_already_configured()` returns `true`.
-2. `parse_show_output_detects_timeout_present` — feed `timeout=600s`, assert `false`.
-3. `parse_show_output_detects_lock_on_sleep` — feed `no-timeout, lock-on-sleep`, assert `false` (we want both gone).
-4. `marker_path_resolves_under_config_dir` — assert `marker_path()` returns a path under `dirs::config_dir().unwrap()`.
-5. `opt_out_env_var_is_respected` — `set_var(KLEF_NO_KEYCHAIN_AUTOCONFIG, "1")`, run `ensure_configured()` against a mock that records calls, assert no calls made.
-6. `existing_marker_is_respected` — create a temp dir as fake config dir, write a marker, run `ensure_configured()`, assert no `security` calls made.
-7. `successful_apply_writes_marker_and_prints` — mock returns success, assert marker written, capture stderr, assert message present.
-8. `failed_apply_does_not_write_marker` — mock returns error, assert no marker written.
+1. `default_keychain_strips_quotes` — input `"/path/to/login.keychain-db"\n`, expect `/path/to/login.keychain-db`.
+2. `parse_show_no_timeout_no_lock` — input `Keychain "..." no-timeout`, expect `KeychainStatus { timeout_seconds: None, lock_on_sleep: false, .. }`.
+3. `parse_show_timeout_with_lock` — input `Keychain "..." timeout=600s lock-on-sleep`, expect `Some(600), true`.
+4. `is_already_friendly_true_only_when_both_clear` — table-driven: friendly only when timeout None AND lock_on_sleep false.
+5. `build_revert_command_includes_timeout_and_lock` — given prev state with `timeout: 600, lock_on_sleep: true`, output contains `-t 600 -l`.
+6. `build_revert_command_no_lock` — given prev `timeout: 30, lock_on_sleep: false`, output contains `-t 30` and NOT `-l`.
+7. `apply_friendly_settings_invokes_security_with_no_flags` — mock SecurityCli, assert `set_keychain_settings(path, None, false)` was called.
 
-Pure-Rust tests, no real `security` binary touched, no real keychain touched.
+### CLI-level tests (`klef-cli/src/...`)
 
-### Integration tests
+8. `banner_does_not_show_when_marker_present` — set fake config dir with marker, run banner check, assert silent.
+9. `banner_does_not_show_when_env_var_set` — set `KLEF_NO_KEYCHAIN_AUTOCONFIG`, assert silent.
+10. `banner_shown_writes_marker_with_applied_false` — happy path, assert marker JSON has `applied: false`.
+11. `keychain_configure_writes_marker_with_prev_state` — happy path with mock helper, assert marker JSON contains the prev state fields.
+12. `keychain_configure_idempotent_when_already_friendly` — mock returns `is_already_friendly == true`, assert no `set_keychain_settings` call.
 
-None. The real `security` command and the user's actual keychain are not safe to exercise in CI.
+Pure Rust, no real `security` binary touched, no real keychain touched.
+
+### Integration / smoke
+
+None automated. Manual smoke test documented in the implementation plan: install klef on a Mac with `security set-keychain-settings -t 600 -l <login>`, run `klef get something`, verify banner appears once, then run `klef keychain configure`, verify settings change, verify marker contents.
 
 ### CI
 
-`.github/workflows/ci.yml` already runs on macOS + Linux. On Linux the module is empty, all tests trivially compile out. On macOS the unit tests run via mocks.
+Already runs on macOS + Linux. Linux compiles out the module entirely. macOS runs the unit tests via mocks.
+
+## GUI integration (out of detailed scope)
+
+`klef-gui` will gain a settings panel button "Fix macOS Keychain prompts". When clicked:
+- Calls `klef_core::macos_keychain::current_status()` to show the current state.
+- Confirms with the user (modal: "klef will run `security set-keychain-settings ...`. Continue?").
+- Calls `apply_friendly_settings()`.
+- Reports success + the revert command.
+
+The GUI does NOT show the CLI banner or write the CLI's marker file — those are CLI concerns. The GUI may track its own UI state for "already shown the user this option."
+
+GUI implementation is its own follow-up; this spec ensures the core helpers exist and are reachable from the GUI crate.
+
+## Documentation
+
+Two doc updates as part of the implementation:
+
+1. **`README.md`**: in the platforms / macOS section, add a one-line note: "On macOS, klef uses your login keychain. If you see frequent password prompts, run `klef keychain configure` (one-shot) — see `docs/macos-keychain.md` for details."
+2. **`docs/macos-keychain.md`** (new): explains the timeout problem, the fix, the security tradeoffs, the opt-out env var, the revert command, and the corporate-MDM caveat.
+
+(The earlier draft referenced `docs/troubleshooting.md` which doesn't exist. Replaced with the dedicated `docs/macos-keychain.md`.)
 
 ## Out of scope (future work)
 
-- A `klef doctor` command for diagnostic + manual revert. Useful but not blocking.
-- Auto-config for Linux Secret Service auto-lock policies. Linux variants don't have a single coherent "timeout" knob; gnome-keyring and KWallet handle this differently.
-- A "klef-managed dedicated keychain" (option β3 from brainstorm). Reconsidered if user feedback shows the global-login-keychain approach causes real friction.
-- Detection of MDM-enforced timeout that will be reverted at next sync. Could be a logged hint but requires identifying MDM presence.
+- `klef keychain status` and `klef keychain revert` subcommands (logical extensions if v1 generates demand).
+- Auto-config for Linux Secret Service auto-lock policies.
+- A "klef-managed dedicated keychain" (option β3 from brainstorm).
+- Detection of MDM-enforced timeouts that will be reverted at next sync.
+- An interactive confirmation prompt (`y/N`) inside `klef keychain configure`. The command is already explicit; an extra prompt would be redundant.
