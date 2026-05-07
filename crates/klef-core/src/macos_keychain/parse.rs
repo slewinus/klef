@@ -9,7 +9,6 @@ use std::path::PathBuf;
 /// # Errors
 ///
 /// Returns `KeychainHelperError::Parse` if the output doesn't contain a quoted path.
-#[allow(dead_code)] // consumed in a later task
 pub fn default_keychain_path(s: &str) -> Result<PathBuf, KeychainHelperError> {
     let trimmed = s.trim();
     let inner = trimmed
@@ -37,7 +36,6 @@ pub fn default_keychain_path(s: &str) -> Result<PathBuf, KeychainHelperError> {
 ///
 /// Returns `KeychainHelperError::Parse` if neither `no-timeout` nor `timeout=Ns`
 /// is present in the input.
-#[allow(dead_code)] // consumed in a later task
 pub fn show_keychain_info(s: &str) -> Result<(Option<u64>, bool), KeychainHelperError> {
     let lock_on_sleep = s.contains("lock-on-sleep");
 
@@ -52,7 +50,6 @@ pub fn show_keychain_info(s: &str) -> Result<(Option<u64>, bool), KeychainHelper
     Ok((Some(timeout), lock_on_sleep))
 }
 
-#[allow(dead_code)] // consumed via show_keychain_info in a later task
 fn extract_timeout_seconds(s: &str) -> Option<u64> {
     let needle = "timeout=";
     let start = s.find(needle)? + needle.len();

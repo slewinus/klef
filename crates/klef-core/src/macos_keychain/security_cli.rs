@@ -8,12 +8,9 @@ use crate::macos_keychain::KeychainHelperError;
 use std::path::Path;
 use std::process::Command;
 
-#[allow(dead_code)] // consumed in a later task
 const SECURITY: &str = "/usr/bin/security";
 
-#[allow(dead_code)] // consumed in a later task
-#[allow(clippy::redundant_pub_crate)]
-pub(crate) trait SecurityCli {
+pub trait SecurityCli {
     fn default_keychain(&self) -> Result<String, KeychainHelperError>;
     fn show_keychain_info(&self, path: &Path) -> Result<String, KeychainHelperError>;
     /// Set keychain settings.
@@ -26,11 +23,8 @@ pub(crate) trait SecurityCli {
     ) -> Result<(), KeychainHelperError>;
 }
 
-#[allow(dead_code)] // consumed in a later task
-#[allow(clippy::redundant_pub_crate)]
-pub(crate) struct RealSecurityCli;
+pub struct RealSecurityCli;
 
-#[allow(dead_code)] // consumed in a later task
 impl SecurityCli for RealSecurityCli {
     fn default_keychain(&self) -> Result<String, KeychainHelperError> {
         let out = Command::new(SECURITY).arg("default-keychain").output()?;
@@ -70,7 +64,6 @@ impl SecurityCli for RealSecurityCli {
     }
 }
 
-#[allow(dead_code)] // consumed in a later task
 fn require_success(
     cmd: &'static str,
     out: &std::process::Output,
