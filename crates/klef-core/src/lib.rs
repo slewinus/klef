@@ -9,6 +9,9 @@ pub mod envfile;
 pub mod error;
 pub mod store;
 
+#[cfg(target_os = "macos")]
+pub mod macos_keychain;
+
 pub use dto::{BackendConfig, KeyDto, TagSummaryDto};
 
 use error::KlefError;
