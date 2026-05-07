@@ -175,6 +175,7 @@ klef expose une documentation pensée pour les assistants IA :
 - **[`llms.txt`](./llms.txt)** : index de navigation (convention [llmstxt.org](https://llmstxt.org/))
 - **[`llms-full.txt`](./llms-full.txt)** : doc concaténée pour ingestion en un prompt
 - **[`docs/llm-usage.md`](./docs/llm-usage.md)** : patterns concrets — décision table, exit codes, JSON outputs
+- **[`docs/mcp.md`](./docs/mcp.md)** : MCP server (`klef mcp`) — let Claude/Cursor use your keys without ever seeing the plaintext value.
 
 Les agents Claude Code, Cursor, ChatGPT peuvent ingérer ces fichiers et savoir comment piloter klef sans hallucination.
 
