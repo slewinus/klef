@@ -50,14 +50,22 @@ body {
     -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   font-size: 13px;
   color: var(--text);
-  background: var(--surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Window itself is transparent (tauri.conf.json transparent: true) so the
+   body acts as the visible surface with rounded corners and a soft border. */
+html { background: transparent; }
 body {
   position: relative;
   overflow: hidden;
+  background: var(--surface);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 #app {
