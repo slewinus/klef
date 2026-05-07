@@ -10,6 +10,8 @@ mod parse;
 mod security_cli;
 mod status;
 
+pub use status::{KeychainStatus, build_revert_command, is_already_friendly};
+
 #[derive(Debug, thiserror::Error)]
 pub enum KeychainHelperError {
     #[error("running /usr/bin/security: {0}")]
