@@ -7,6 +7,8 @@ pub mod export;
 pub mod get;
 pub mod import;
 pub mod list;
+#[cfg(feature = "mcp")]
+pub mod mcp;
 pub mod names;
 pub mod rename;
 pub mod restore;
