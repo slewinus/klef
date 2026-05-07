@@ -116,6 +116,13 @@ pub async fn spawn_and_capture(req: ProcRequest) -> Result<ProcResult, ProcError
             if let Some(pgid) = pgid {
                 kill_group(pgid).await;
             }
+            #[cfg(not(unix))]
+            {
+                let _ = child.start_kill();
+                // Bounded grace period for the OS to deliver the signal so
+                // pipes close and read tasks unblock.
+                let _ = tokio::time::timeout(Duration::from_secs(2), child.wait()).await;
+            }
             None
         }
     };
