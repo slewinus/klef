@@ -104,6 +104,23 @@ pub fn argv_matches(pattern: &[String], argv: &[&str]) -> bool {
         .all(|(pat, arg)| glob::Pattern::new(pat).is_ok_and(|p| p.matches(arg)))
 }
 
+const SHELL_DENYLIST: &[&str] = &[
+    "sh", "bash", "zsh", "fish", "dash", "ksh", "csh", "tcsh", "ash", "python", "python3", "ruby",
+    "perl", "lua", "awk", "node", "deno", "bun", "eval", "exec", "env",
+];
+
+/// True if `argv0` resolves to one of the hard-coded shell-or-interpreter
+/// programs that bypass rule intent. Compares `Path::file_name(argv0)` so
+/// `/usr/bin/python3` and `python3` are treated identically.
+#[must_use]
+pub fn is_shell_program(argv0: &str) -> bool {
+    let name = Path::new(argv0)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(argv0);
+    SHELL_DENYLIST.contains(&name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,5 +223,31 @@ env_refs = ["stripe"]
             &["curl".into(), "https://api.stripe.com/*".into()],
             &["curl", "https://api.stripe.com/v1/charges"],
         ));
+    }
+
+    #[test]
+    fn shell_denylist_bare_names() {
+        for name in [
+            "sh", "bash", "zsh", "python", "python3", "node", "deno", "bun", "env",
+        ] {
+            assert!(is_shell_program(name), "{name} must be denied");
+        }
+    }
+
+    #[test]
+    fn shell_denylist_absolute_paths() {
+        assert!(is_shell_program("/bin/sh"));
+        assert!(is_shell_program("/usr/bin/python3"));
+        assert!(is_shell_program("/opt/homebrew/bin/node"));
+    }
+
+    #[test]
+    fn shell_denylist_does_not_match_innocent_programs() {
+        assert!(!is_shell_program("npm"));
+        assert!(!is_shell_program("/usr/local/bin/cargo"));
+        assert!(
+            !is_shell_program("./my-script.sh"),
+            "extension does not imply shell interpreter"
+        );
     }
 }
