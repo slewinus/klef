@@ -14,8 +14,9 @@ klef keychain configure
 
 This runs `security set-keychain-settings` against your default keychain
 (no flags = no timeout, no lock-on-sleep). klef writes a marker at
-`~/.config/klef/keychain-configured` recording your prior settings so
-the post-run output shows the exact revert command.
+`~/Library/Application Support/klef/keychain-configured` (the platform
+config dir) recording your prior settings so the post-run output shows
+the exact revert command.
 
 After running, you should see no further password prompts during the
 current login session. The keychain still locks at logout/reboot — your

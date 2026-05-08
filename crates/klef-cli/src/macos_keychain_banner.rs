@@ -1,7 +1,9 @@
 //! Banner trigger for the macOS keychain timeout issue. Decides whether
 //! to print a one-time stderr banner pointing the user at
-//! `klef keychain configure`. Suppressed via marker file at
-//! `~/.config/klef/keychain-configured` with TTL + state-drift re-show.
+//! `klef keychain configure`. Suppressed via marker file in
+//! `dirs::config_dir()/klef/keychain-configured` (which is
+//! `~/Library/Application Support/klef/...` on macOS) with TTL +
+//! state-drift re-show.
 
 #![cfg(target_os = "macos")]
 #![allow(clippy::redundant_pub_crate)]
