@@ -19,6 +19,12 @@ use klef_core::error::KlefError;
 /// Returns an error if the backend or command dispatch fails.
 pub fn run(cli: Cli) -> Result<(), KlefError> {
     let store = klef_core::build_store(cli.backend.as_deref())?;
+    #[cfg(target_os = "macos")]
+    if macos_keychain_banner::backend_is_keychain(&store)
+        && macos_keychain_banner::command_touches_values(&cli.command)
+    {
+        macos_keychain_banner::maybe_emit_banner(&mut std::io::stderr());
+    }
     match cli.command {
         Command::Add {
             name,

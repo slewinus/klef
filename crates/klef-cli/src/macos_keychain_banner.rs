@@ -4,7 +4,6 @@
 //! `~/.config/klef/keychain-configured` with TTL + state-drift re-show.
 
 #![cfg(target_os = "macos")]
-#![allow(dead_code)] // Wired into the run() entrypoint in a later task.
 #![allow(clippy::redundant_pub_crate)]
 
 use klef_core::macos_keychain::KeychainStatus;
