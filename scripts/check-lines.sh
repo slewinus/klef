@@ -10,6 +10,9 @@ while IFS= read -r path; do
         *.md|*.toml|*.lock|*.txt|*.json|*.yaml|*.yml)
             continue
             ;;
+        *.png|*.jpg|*.jpeg|*.gif|*.icns|*.ico|*.svg|*.webp)
+            continue
+            ;;
     esac
 
     if [[ ! -f "$path" ]]; then
