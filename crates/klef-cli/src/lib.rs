@@ -6,6 +6,9 @@
 pub mod cli;
 pub mod commands;
 
+#[cfg(target_os = "macos")]
+mod macos_keychain_banner;
+
 use cli::{Cli, Command};
 use klef_core::error::KlefError;
 
