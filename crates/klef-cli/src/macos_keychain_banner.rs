@@ -114,69 +114,105 @@ pub(crate) fn write_banner_shown(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-    use tempfile::TempDir;
+use crate::cli::Command;
+use klef_core::macos_keychain::{KeychainHelperError, current_status, is_already_friendly};
+use klef_core::store::Store;
+use std::io::Write;
 
-    fn st() -> KeychainStatus {
-        KeychainStatus {
-            path: PathBuf::from("/Users/alice/Library/Keychains/login.keychain-db"),
-            timeout_seconds: Some(600),
-            lock_on_sleep: true,
-        }
-    }
+const OPT_OUT_ENV: &str = "KLEF_NO_KEYCHAIN_AUTOCONFIG";
 
-    #[test]
-    fn show_banner_when_marker_missing() {
-        let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join(MARKER_FILE);
-        assert!(should_show_banner(&path, &st()));
-    }
-
-    #[test]
-    fn no_banner_when_applied_marker_present() {
-        let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join(MARKER_FILE);
-        let body = serde_json::json!({
-            "applied": true,
-            "configured_at": "2026-05-07T14:23:45Z",
-            "keychain_path": "/p",
-            "prev_timeout_seconds": 600,
-            "prev_lock_on_sleep": true,
-        });
-        std::fs::write(&path, serde_json::to_vec(&body).unwrap()).unwrap();
-        assert!(!should_show_banner(&path, &st()));
-    }
-
-    #[test]
-    fn no_banner_when_shown_marker_state_matches_and_recent() {
-        let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join(MARKER_FILE);
-        write_banner_shown(&path, &st()).unwrap();
-        assert!(!should_show_banner(&path, &st()));
-    }
-
-    #[test]
-    fn banner_re_shown_when_state_drifts() {
-        let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join(MARKER_FILE);
-        write_banner_shown(&path, &st()).unwrap();
-        let mut drifted = st();
-        drifted.timeout_seconds = Some(30); // changed
-        assert!(should_show_banner(&path, &drifted));
-    }
-
-    #[test]
-    fn banner_re_shown_when_marker_older_than_ttl() {
-        let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join(MARKER_FILE);
-        write_banner_shown(&path, &st()).unwrap();
-        // Backdate mtime to 8 days ago.
-        let old = SystemTime::now() - Duration::from_hours(8 * 24);
-        let f = std::fs::File::open(&path).unwrap();
-        f.set_modified(old).unwrap();
-        assert!(should_show_banner(&path, &st()));
-    }
+/// Whether the given command will read or write a keychain value.
+/// Returns `false` for read-only/metadata commands like list/status/completions.
+#[must_use]
+pub(crate) const fn command_touches_values(cmd: &Command) -> bool {
+    matches!(
+        cmd,
+        Command::Get { .. }
+            | Command::Show { .. }
+            | Command::Run { .. }
+            | Command::Add { .. }
+            | Command::Edit { .. }
+            | Command::Rm { .. }
+            | Command::Rename { .. }
+            | Command::Import { .. }
+            | Command::Export { .. }
+    )
 }
+
+/// Whether the resolved store backend is the OS keychain.
+pub(crate) fn backend_is_keychain(store: &Store) -> bool {
+    store.backend_description() == "keychain"
+}
+
+/// Try to emit the banner. All-or-nothing best-effort: returns silently
+/// on any error. Caller does not propagate errors.
+pub(crate) fn maybe_emit_banner<W: Write>(stderr: &mut W) {
+    maybe_emit_with(stderr, current_status);
+}
+
+fn maybe_emit_with<W: Write>(
+    stderr: &mut W,
+    read_status: impl FnOnce() -> Result<KeychainStatus, KeychainHelperError>,
+) {
+    if std::env::var_os(OPT_OUT_ENV).is_some() {
+        return;
+    }
+    let Some(path) = marker_path() else { return };
+
+    let Ok(status) = read_status() else { return };
+
+    if is_already_friendly(&status) {
+        // Nothing to warn about; persist as "applied" so we never check again.
+        let _ = write_already_friendly(&path, &status);
+        return;
+    }
+
+    if !should_show_banner(&path, &status) {
+        return;
+    }
+
+    let timeout_disp = status
+        .timeout_seconds
+        .map_or_else(|| "off".to_string(), |s| format!("{s}s"));
+    let lock_disp = if status.lock_on_sleep { "yes" } else { "no" };
+
+    let _ = writeln!(
+        stderr,
+        "klef: heads up — your macOS keychain auto-locks (timeout: {timeout_disp}, lock-on-sleep: {lock_disp})."
+    );
+    let _ = writeln!(
+        stderr,
+        "      You'll be prompted for your password on every klef call until this is fixed."
+    );
+    let _ = writeln!(
+        stderr,
+        "      One-shot fix (modifies macOS Keychain settings, not your klef data):"
+    );
+    let _ = writeln!(stderr, "          klef keychain configure");
+    let _ = writeln!(stderr, "      To suppress this notice without fixing:");
+    let _ = writeln!(stderr, "          export {OPT_OUT_ENV}=1");
+
+    let _ = write_banner_shown(&path, &status);
+}
+
+fn write_already_friendly(path: &Path, status: &KeychainStatus) -> Result<(), std::io::Error> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let now = time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string());
+    let body = serde_json::json!({
+        "applied": true,
+        "configured_at": now,
+        "keychain_path": status.path,
+        "prev_timeout_seconds": status.timeout_seconds,
+        "prev_lock_on_sleep": status.lock_on_sleep,
+    });
+    std::fs::write(path, serde_json::to_vec_pretty(&body).unwrap_or_default())?;
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "macos_keychain_banner_tests.rs"]
+mod tests;
