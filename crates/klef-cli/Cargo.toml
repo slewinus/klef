@@ -1,6 +1,6 @@
 [package]
 name = "klef"
-version = "0.3.0"
+version = "0.4.0"
 description = "Local-first vault for API keys and secrets, backed by the OS keychain."
 edition.workspace = true
 license.workspace = true
@@ -10,7 +10,7 @@ keywords = ["cli", "secrets", "keychain", "api-keys", "vault"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-klef-core = { version = "0.1.0", path = "../klef-core" }
+klef-core = { version = "0.2.0", path = "../klef-core" }
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
 rpassword = "7"

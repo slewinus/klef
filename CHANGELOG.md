@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-08
+
+### Added
+
+- **MCP server** (`klef mcp`) — exposes `klef_list` (metadata) and `klef_run` (process spawn with `klef:` refs injected as env vars) to MCP clients like Claude Desktop and Claude Code. Authorization is policy-driven via a TOML file (`~/Library/Application Support/klef/mcp-policy.toml` on macOS, `~/.config/klef/mcp-policy.toml` on Linux). Pre-spawn fail-closed audit log (NDJSON, `audit.log` in the same config dir). Best-effort byte-level redaction of resolved secret values in captured stdout/stderr. Hard shell denylist on `argv[0]` (`sh`, `bash`, `python`, `node`, `pwsh`, `osascript`, …). Unix process-group kill on timeout (SIGTERM → 2s grace → SIGKILL). Behind `mcp` Cargo feature (off by default; enabled by Homebrew + release binaries). Closes #24. See [`docs/mcp.md`](./docs/mcp.md).
+- **`klef keychain configure`** (macOS only) — explicit user-action that disables the login keychain auto-lock (`security set-keychain-settings`) to stop frequent password prompts. Records prior settings (timeout, lock-on-sleep) so the post-run output prints the exact revert command (`security set-keychain-settings -u -t 600 -l <path>`). Idempotent: prints "already configured" when the state is already friendly. See [`docs/macos-keychain.md`](./docs/macos-keychain.md).
+- **One-time banner** (macOS only) — when klef is about to read or write a Keychain value AND the default keychain has auto-lock enabled, klef prints a one-time stderr banner pointing the user at `klef keychain configure`. Marker file persists across runs (TTL 7 days; re-shown if keychain state drifts). Opt-out via `KLEF_NO_KEYCHAIN_AUTOCONFIG=1`. Banner does NOT print from `klef mcp` (Claude Desktop captures stderr to log files).
+- `klef-core::macos_keychain` public module: shared helpers (`current_status`, `apply_friendly_settings`, `is_already_friendly`, `build_revert_command`) for CLI and the future GUI button. Empty on non-macOS.
+
+### Changed
+
+- `klef-core` bumped from 0.1.0 to 0.2.0 (adds the public `macos_keychain` module). All previously-stable API unchanged.
+- `klef-cli` `unsafe_code` workspace lint downgraded from `forbid` to `deny` (CLI crate only) to allow scoped `#[allow(unsafe_code)]` blocks for `setsid` / `killpg` (`klef mcp` process-group kill on Unix) and Rust 2024's `unsafe { std::env::set_var }` in tests. `klef-core` retains `forbid(unsafe_code)`.
+
+### Fixed
+
+- N/A.
+
 ## [0.3.0] - 2026-05-06
 
 ### Added

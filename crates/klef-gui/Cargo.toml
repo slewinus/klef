@@ -1,6 +1,6 @@
 [package]
 name = "klef-gui"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local-first vault for API keys — macOS GUI."
 edition.workspace = true
 license.workspace = true
@@ -12,7 +12,7 @@ build = "build.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-klef-core = { version = "0.1.0", path = "../klef-core" }
+klef-core = { version = "0.2.0", path = "../klef-core" }
 tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-global-shortcut = "2"

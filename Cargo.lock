@@ -2578,7 +2578,7 @@ dependencies = [
 
 [[package]]
 name = "klef"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "age",
  "assert_cmd",
@@ -2605,7 +2605,7 @@ dependencies = [
 
 [[package]]
 name = "klef-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "age",
  "dirs 5.0.1",
@@ -2623,7 +2623,7 @@ dependencies = [
 
 [[package]]
 name = "klef-gui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "klef-core",
  "serde",
