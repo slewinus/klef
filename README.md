@@ -166,6 +166,7 @@ Les hooks git (`fmt`, `clippy`, `tests`, line-cap < 300 lignes/fichier) sont ver
 ## Documentation
 
 - **Quickstart** : [examples/quickstart/](./examples/quickstart/) — `.env` + script consommateur, smoke test bout-en-bout.
+- **macOS users** : si tu vois des prompts de mot de passe fréquents, lance `klef keychain configure` une fois — voir [`docs/macos-keychain.md`](./docs/macos-keychain.md).
 - **Changelog** : [CHANGELOG.md](./CHANGELOG.md)
 
 ## Pour les agents IA
