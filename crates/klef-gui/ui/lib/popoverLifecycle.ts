@@ -8,6 +8,14 @@ export type IsModalOpen = () => boolean;
 export type IsPinned = () => boolean;
 
 /**
+ * Module-level flag set while a drag operation is in progress over the
+ * popover window. Auto-hide-on-blur consults this so the focus shift
+ * triggered by macOS during drag-drop doesn't hide the popover before
+ * the drop event fires.
+ */
+let dragInProgress = false;
+
+/**
  * Wires the popover's lifecycle events:
  * - Calls `onShown` whenever the Rust side emits `popover-shown` (so the
  *   webview can refresh data + refocus the search bar).
@@ -28,7 +36,7 @@ export async function setupPopoverLifecycle(
   const unlistenShown = await listen("popover-shown", () => onShown());
 
   const unlistenFocus = await win.onFocusChanged(({ payload: focused }) => {
-    if (!focused && !isModalOpen() && !isPinned()) {
+    if (!focused && !isModalOpen() && !isPinned() && !dragInProgress) {
       win.hide();
     }
   });
@@ -67,7 +75,18 @@ export async function onDotenvDropped(
 ): Promise<() => void> {
   const win = getCurrentWebviewWindow();
   const unlisten = await win.onDragDropEvent((evt) => {
+    // Track drag state so auto-hide-on-blur doesn't fire while the user
+    // is dragging from another app (focus shifts during drag/drop).
+    if (evt.payload.type === "enter" || evt.payload.type === "over") {
+      dragInProgress = true;
+      return;
+    }
+    if (evt.payload.type === "leave") {
+      dragInProgress = false;
+      return;
+    }
     if (evt.payload.type !== "drop") return;
+    dragInProgress = false;
     for (const path of evt.payload.paths) {
       const lower = path.toLowerCase();
       if (lower.endsWith(".env") || lower.includes("/.env")) {

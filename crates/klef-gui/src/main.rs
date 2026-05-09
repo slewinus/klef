@@ -118,11 +118,17 @@ fn edit_key(
         .map_err(|e| e.to_string())
 }
 
+/// Quit klef-gui. `#[allow]` because Tauri commands require owned `AppHandle`.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 /// Place the window centered under the tray icon, querying the icon's
 /// screen rect directly from Tauri (works even before the user has clicked
 /// the tray for the first time, unlike `Position::TrayCenter` from the
 /// positioner plugin which depends on `on_tray_event` having fired).
-///
 /// Returns true when the position was successfully computed and applied.
 fn place_under_tray(app: &tauri::AppHandle, window: &tauri::WebviewWindow) -> bool {
     let Some(tray) = app.tray_by_id("main") else {
@@ -225,11 +231,11 @@ fn main() {
                 .clone();
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(icon)
-                // Template-mode requires a monochrome PNG with alpha so
-                // macOS can tint it with the menu bar color. Our S2.2c
-                // placeholder is a solid blue square — it renders as
-                // invisible under template mode. Disable until we ship a
-                // proper alpha-channel logo (S7 polish sprint).
+                // Template mode tints the icon to match the menu-bar
+                // color (black on light mode, white on dark mode) using
+                // the alpha channel of the PNG. The colored fill is
+                // ignored when this is true. Set to false to keep the
+                // original icon colors.
                 .icon_as_template(false)
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
@@ -275,8 +281,7 @@ fn main() {
 
             Ok(())
         })
-        // Auto-hide-on-blur lives in JS (lib/popoverLifecycle.ts); checks
-        // anyModalOpen so a modal-mount focus shift doesn't hide mid-render.
+        // Auto-hide-on-blur lives in JS (lib/popoverLifecycle.ts).
         .on_window_event(|_window, _event| {})
         .invoke_handler(tauri::generate_handler![
             list_keys,
@@ -287,7 +292,8 @@ fn main() {
             record_access,
             open_keychain_access,
             dotenv_import::preview_dotenv_import,
-            dotenv_import::apply_dotenv_import
+            dotenv_import::apply_dotenv_import,
+            quit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

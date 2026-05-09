@@ -20,7 +20,8 @@
   import type { KeyDto } from "./lib/types";
   import KeychainAccessHelp from "./lib/KeychainAccessHelp.svelte";
   import Modals from "./lib/Modals.svelte";
-  import { Pin, PinOff, Plus, Settings as SettingsIcon } from "lucide-svelte";
+  import { Pin, PinOff, Plus, Power, Settings as SettingsIcon } from "lucide-svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import KeyRow from "./lib/KeyRow.svelte";
   import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
@@ -215,6 +216,9 @@
       <button class="hdr-btn primary" onclick={() => (showAddModal = true)} title="Add key">
         <Plus size={14} />
       </button>
+      <button class="hdr-btn" onclick={() => invoke("quit_app")} title="Quit klef">
+        <Power size={14} />
+      </button>
     </div>
   </div>
   <SearchBar bind:this={searchBar} bind:value={query} />
@@ -280,17 +284,14 @@
   .title { font-weight: 700; font-size: 13px; letter-spacing: -0.01em; }
   .header-actions { display: flex; gap: 2px; }
   .hdr-btn {
-    width: 26px; height: 26px; padding: 0;
-    background: transparent; color: var(--text-secondary);
-    border: none; border-radius: var(--radius-sm);
-    cursor: pointer; font-family: inherit;
-    display: inline-flex; align-items: center; justify-content: center;
-    transition: background 80ms, color 80ms;
+    width: 26px; height: 26px; padding: 0; background: transparent;
+    color: var(--text-secondary); border: none; border-radius: var(--radius-sm);
+    cursor: pointer; font-family: inherit; display: inline-flex;
+    align-items: center; justify-content: center; transition: background 80ms, color 80ms;
   }
   .hdr-btn:hover { background: var(--hover); color: var(--text); }
   .hdr-btn.active { background: var(--accent-bg); color: var(--accent); }
-  .hdr-btn.primary { background: var(--accent); color: #fff; }
-  .hdr-btn.primary:hover { background: var(--accent-hover); }
+  .hdr-btn.primary { background: var(--accent); color: #fff; } .hdr-btn.primary:hover { background: var(--accent-hover); }
   main { padding: 6px; }
   .empty { padding: 32px 16px; color: var(--text-secondary); text-align: center; font-size: 12px; line-height: 1.5; }
   .err { color: var(--danger); padding: 16px; font-size: 12px; }
