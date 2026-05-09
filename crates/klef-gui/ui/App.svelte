@@ -20,8 +20,9 @@
   import type { KeyDto } from "./lib/types";
   import KeychainAccessHelp from "./lib/KeychainAccessHelp.svelte";
   import Modals from "./lib/Modals.svelte";
-  import { Pin, PinOff, Plus, Power, Settings as SettingsIcon } from "lucide-svelte";
+  import { FileUp, Pin, PinOff, Plus, Power, Settings as SettingsIcon } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { pickDotenvFile } from "./lib/dotenvPicker";
   import KeyRow from "./lib/KeyRow.svelte";
   import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
@@ -133,6 +134,11 @@
     }
   }
 
+  async function pickAndImportDotenv() {
+    const path = await pickDotenvFile();
+    if (path !== null) await handleDotenvDropped(path);
+  }
+
   async function handleDotenvImported(count: number) {
     dotenvPlan = null;
     showToast(`${count} keys imported`);
@@ -210,6 +216,9 @@
       >
         {#if pinned}<PinOff size={14} />{:else}<Pin size={14} />{/if}
       </button>
+      <button class="hdr-btn" onclick={pickAndImportDotenv} title="Import .env file">
+        <FileUp size={14} />
+      </button>
       <button class="hdr-btn" onclick={() => (showSettings = true)} title="Settings">
         <SettingsIcon size={14} />
       </button>
@@ -275,20 +284,11 @@
 />
 
 <style>
-  header {
-    padding: 10px 12px 6px; background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    display: flex; flex-direction: column; gap: 8px;
-  }
+  header { padding: 10px 12px 6px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
   .title-row { display: flex; align-items: center; justify-content: space-between; }
   .title { font-weight: 700; font-size: 13px; letter-spacing: -0.01em; }
   .header-actions { display: flex; gap: 2px; }
-  .hdr-btn {
-    width: 26px; height: 26px; padding: 0; background: transparent;
-    color: var(--text-secondary); border: none; border-radius: var(--radius-sm);
-    cursor: pointer; font-family: inherit; display: inline-flex;
-    align-items: center; justify-content: center; transition: background 80ms, color 80ms;
-  }
+  .hdr-btn { width: 26px; height: 26px; padding: 0; background: transparent; color: var(--text-secondary); border: none; border-radius: var(--radius-sm); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; transition: background 80ms, color 80ms; }
   .hdr-btn:hover { background: var(--hover); color: var(--text); }
   .hdr-btn.active { background: var(--accent-bg); color: var(--accent); }
   .hdr-btn.primary { background: var(--accent); color: #fff; } .hdr-btn.primary:hover { background: var(--accent-hover); }

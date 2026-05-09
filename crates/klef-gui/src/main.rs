@@ -118,7 +118,7 @@ fn edit_key(
         .map_err(|e| e.to_string())
 }
 
-/// Quit klef-gui. `#[allow]` because Tauri commands require owned `AppHandle`.
+/// Quit klef-gui. `#[allow]`: Tauri commands require owned `AppHandle`.
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 fn quit_app(app: tauri::AppHandle) {
@@ -138,8 +138,7 @@ fn place_under_tray(app: &tauri::AppHandle, window: &tauri::WebviewWindow) -> bo
         return false;
     };
     let scale = window.scale_factor().unwrap_or(1.0);
-    // Tauri 2's Rect carries position/size as enums (Physical or Logical
-    // depending on platform). Convert to physical pixels for set_position.
+    // Tauri 2's Rect uses Physical-or-Logical enums; convert for set_position.
     let pos = rect.position.to_physical::<f64>(scale);
     let size = rect.size.to_physical::<f64>(scale);
     let win = window.outer_size().unwrap_or_default();
@@ -191,6 +190,7 @@ fn toggle_window(app: &tauri::AppHandle) {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
