@@ -62,6 +62,18 @@ jobs:
           npm ci
           npm run build
 
+      # tauri.conf.json bundles the klef CLI binary as a resource so the
+      # release Cask ships both the GUI and the CLI in one .app. The path
+      # cli-bundle/klef is gitignored, so CI must produce it before any
+      # cargo command touches klef-gui (tauri-build validates the resource
+      # exists at compile time).
+      - name: Stage klef CLI binary for bundling (macos)
+        if: runner.os == 'macOS'
+        run: |
+          cargo build -p klef --release --features mcp
+          mkdir -p crates/klef-gui/cli-bundle
+          cp target/release/klef crates/klef-gui/cli-bundle/klef
+
       - name: Test klef-gui frontend (macos)
         if: runner.os == 'macOS'
         working-directory: crates/klef-gui
