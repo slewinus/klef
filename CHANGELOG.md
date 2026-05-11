@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **GUI preview sessions now have a 5-min TTL**, pruned opportunistically on every `preview_dotenv_import` and `apply_dotenv_import`. Previously the plaintext values held server-side could linger in RAM until LRU eviction (up to 8 imports later) if the user dismissed the popover without explicit cancel or apply. The hard guarantees (no plaintext in JS, server-side path canonicalization, single-use sessions) are unchanged.
 - **`klef export` revalidates `env_var` at render time** so a legacy index from a pre-validation klef install (or a tampered `index.json`) can't smuggle a shell-injection payload through `eval "$(klef export ...)"`. Without this, `add`-time validation alone would let an existing bad name through. Regression test: `crates/klef-cli/tests/export_revalidate.rs`.
 - **All file writes use a centralized private-write helper** (`klef_core::fsx`): `write_private` (mode 0600) and `write_inheriting` (mirrors source file perms, falls back to 0600). Applied to `klef-core` index, `klef-cli` audit log + backup `.age` tmp, `klef-core` age-vault `.age.tmp`, and the `.env` rewrite tmps in both CLI import and GUI dotenv import. The `.env` rewrites use `write_inheriting` so a 0640 team-shared `.env` isn't accidentally tightened — but is also never loosened to umask defaults.
 

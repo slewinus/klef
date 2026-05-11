@@ -31,6 +31,13 @@ use serde::Serialize;
 /// frontend from leaking memory; oldest is evicted at capacity.
 const MAX_SESSIONS: usize = 8;
 
+/// Hard TTL for a preview session. If the modal isn't applied or cancelled
+/// (e.g. the user dismissed the popover via blur / ⌘Q), the plaintext
+/// values would otherwise sit in RAM until LRU eviction — which on light
+/// usage can be hours. Five minutes is enough for any realistic
+/// review-the-list flow and short enough that idle sessions don't linger.
+const SESSION_TTL: std::time::Duration = std::time::Duration::from_mins(5);
+
 /// Full parsed plan held server-side, keyed by a UUID session id. The
 /// webview never sees `value`; it gets a `WebPlanItem` + session id and
 /// apply re-loads from this state.
@@ -40,6 +47,8 @@ pub struct ServerPlan {
     pub items: Vec<ServerPlanItem>,
     /// Monotonic insert order — used to evict the oldest at `MAX_SESSIONS`.
     pub created_seq: u64,
+    /// Wall-clock creation time, used to enforce `SESSION_TTL`.
+    pub created_at: std::time::Instant,
 }
 
 pub struct ServerPlanItem {
@@ -162,6 +171,10 @@ pub fn preview_dotenv_import(
             .dotenv_sessions
             .lock()
             .map_err(|e| format!("session lock poisoned: {e}"))?;
+        // Opportunistic GC: drop any session past its TTL before deciding
+        // whether to evict on size. Klef-gui is a popover app with no
+        // background thread, so cleanup is amortized on every preview.
+        prune_expired(&mut sessions);
         if sessions.len() >= MAX_SESSIONS
             && let Some(oldest_key) = sessions
                 .iter()
@@ -177,6 +190,7 @@ pub fn preview_dotenv_import(
                 suggested_project: suggested_project.clone(),
                 items: server_items,
                 created_seq,
+                created_at: std::time::Instant::now(),
             },
         );
     }
@@ -195,6 +209,13 @@ fn next_seq() -> u64 {
     SEQ.fetch_add(1, Ordering::Relaxed)
 }
 
+/// Drop every session older than `SESSION_TTL`. Called opportunistically
+/// from `preview` and `apply` — no background thread needed.
+fn prune_expired(sessions: &mut std::collections::HashMap<String, ServerPlan>) {
+    let now = std::time::Instant::now();
+    sessions.retain(|_, p| now.duration_since(p.created_at) < SESSION_TTL);
+}
+
 /// Apply the previewed import. `accepted` is the list of `env_var` names
 /// the user checked in the preview UI; anything not in this set is skipped.
 /// Items the server marked as `ref` or `empty` are always skipped
@@ -209,12 +230,14 @@ pub fn apply_dotenv_import(
     state: tauri::State<'_, AppState>,
 ) -> Result<u32, String> {
     // Single-use: pull the session out so a retry can't re-import entries
-    // that already landed.
+    // that already landed. Prune expired sessions first so a stale id
+    // returns the same "expired" error as an unknown one.
     let plan = {
         let mut sessions = state
             .dotenv_sessions
             .lock()
             .map_err(|e| format!("session lock poisoned: {e}"))?;
+        prune_expired(&mut sessions);
         sessions
             .remove(&session_id)
             .ok_or_else(|| "unknown or expired import session".to_string())?
@@ -272,3 +295,6 @@ pub fn cancel_dotenv_import(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
