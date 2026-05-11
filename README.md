@@ -158,7 +158,7 @@ cd crates/klef-gui
 npm ci                # une fois
 npm run build         # à chaque modif du frontend (ou utiliser `npm run dev` en parallèle de cargo run)
 cd ../..
-cargo run -p klef-gui # menu bar mode : icône en haut à droite, clic pour ouvrir
+cargo run -p klef-gui # menu bar mode : icône en haut à droite, clic pour ouvrir (pas d'icône Dock — LSUIElement=true)
 ```
 
 Les hooks git (`fmt`, `clippy`, `tests`, line-cap < 300 lignes/fichier) sont versionnés dans `.githooks/`. CI sur macOS + Ubuntu via GitHub Actions (`.github/workflows/ci.yml`).

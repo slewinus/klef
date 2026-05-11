@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **GUI (klef-gui)** : `LSUIElement=true` ajouté au bundle macOS via `crates/klef-gui/Info.plist`. L'app est purement menu-bar — elle n'apparaît plus dans le Dock (et donc plus de carré bleu générique quand le cache LaunchServices est désynchronisé après reboot).
+
 ## [0.4.0] - 2026-05-08
 
 ### Added
