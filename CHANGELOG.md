@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **`klef export` revalidates `env_var` at render time** so a legacy index from a pre-validation klef install (or a tampered `index.json`) can't smuggle a shell-injection payload through `eval "$(klef export ...)"`. Without this, `add`-time validation alone would let an existing bad name through. Regression test: `crates/klef-cli/tests/export_revalidate.rs`.
+- **All file writes use a centralized private-write helper** (`klef_core::fsx`): `write_private` (mode 0600) and `write_inheriting` (mirrors source file perms, falls back to 0600). Applied to `klef-core` index, `klef-cli` audit log + backup `.age` tmp, `klef-core` age-vault `.age.tmp`, and the `.env` rewrite tmps in both CLI import and GUI dotenv import. The `.env` rewrites use `write_inheriting` so a 0640 team-shared `.env` isn't accidentally tightened — but is also never loosened to umask defaults.
+
 - **`env_var` names are now validated** (`^[A-Za-z_][A-Za-z0-9_]*$`) in `klef_core::store` before being stored. `klef add --as`, `klef edit --as`, the GUI import path, and backup restore all reject names containing shell metacharacters. Previously a malicious `.env` file or backup bundle could smuggle a payload like `FOO; rm -rf $HOME #` that would render dangerously through `klef export | eval`. New `KlefError::InvalidEnvVar` variant.
 - **Index file and MCP audit log are now 0600 on Unix** (parent dirs 0700). Previously these files inherited the user's umask (commonly 022 → world-readable). They never contained secret values, but key names, env-var names, notes, tags, and audit metadata (argv, cwd, env_refs) are still potentially sensitive.
 - **`klef edit --note-edit` tempfile** now uses `tempfile::Builder` with `O_CREAT|O_EXCL` and mode 0600 on Unix. Previously a predictable `/tmp/klef-edit-<pid>-<nanos>.txt` allowed symlink races on shared systems.

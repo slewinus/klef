@@ -1,16 +1,22 @@
 use crate::cli::ExportFormat;
 use klef_core::error::KlefError;
-use klef_core::store::Store;
+use klef_core::store::{Store, validate_env_var};
 
 /// Export key values as shell or dotenv formatted lines.
 ///
+/// Revalidates `env_var` at render time so a legacy index from a
+/// pre-validation klef install can't smuggle a shell-injection payload
+/// through `eval "$(klef export ...)"`.
+///
 /// # Errors
 ///
-/// Returns `KlefError::NotFound` if any key does not exist.
+/// `KeyNotFound`, or `InvalidEnvVar` if a stored env-var fails the
+/// POSIX-identifier check (legacy index).
 pub fn run(store: &Store, names: &[String], format: ExportFormat) -> Result<(), KlefError> {
     for name in names {
         let value = store.get_value(name)?;
         let meta = store.meta(name)?;
+        validate_env_var(&meta.env_var)?;
         let line = render_line(&meta.env_var, &value, format);
         println!("{line}");
     }

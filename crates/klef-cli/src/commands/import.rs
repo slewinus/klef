@@ -216,7 +216,11 @@ fn rewrite_env_file(file: &Path, imported: &[(String, String)]) -> Result<usize,
     }
 
     let tmp = file.with_extension("env.tmp");
-    std::fs::write(&tmp, out).map_err(KlefError::Io)?;
+    // Mirror the original file's perms (defaults to 0600 if missing) so
+    // the rewrite never loosens an intentionally-restricted .env. Unimported
+    // lines may still hold plaintext secrets, so a world-readable tmp would
+    // be worse than the original.
+    klef_core::fsx::write_inheriting(&tmp, out.as_bytes(), file).map_err(KlefError::Io)?;
     std::fs::rename(&tmp, file).map_err(KlefError::Io)?;
     Ok(replaced)
 }

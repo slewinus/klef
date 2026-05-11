@@ -44,7 +44,9 @@ pub fn run(store: &Store, output: &Path, recipients: &[String]) -> Result<(), Kl
         p.set_file_name(fname);
         p
     };
-    std::fs::write(&tmp, &ciphertext).map_err(KlefError::IndexWrite)?;
+    // 0600 on the backup .tmp + final file. Ciphertext only, but narrowing
+    // read access keeps the file from sitting world-readable on shared hosts.
+    klef_core::fsx::write_private(&tmp, &ciphertext).map_err(KlefError::IndexWrite)?;
     std::fs::rename(&tmp, output).map_err(KlefError::IndexWrite)?;
 
     println!(

@@ -93,7 +93,7 @@ impl IndexFile {
             path: self.path.clone(),
             reason: e.to_string(),
         })?;
-        write_private_file(&tmp, &bytes).map_err(KlefError::IndexWrite)?;
+        crate::fsx::write_private(&tmp, &bytes).map_err(KlefError::IndexWrite)?;
         std::fs::rename(&tmp, &self.path).map_err(KlefError::IndexWrite)?;
         Ok(())
     }
@@ -101,34 +101,6 @@ impl IndexFile {
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
-    }
-}
-
-/// Write `bytes` to `path` with mode 0600 on Unix (`O_CREAT|O_WRONLY|O_TRUNC`,
-/// 0o600). On non-Unix platforms, falls back to `std::fs::write`.
-///
-/// Used for the index `.tmp` file before rename, and for any other metadata
-/// file that should not inherit the user's umask.
-fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        use std::io::Write;
-        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-        let mut f = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(path)?;
-        f.write_all(bytes)?;
-        // Belt-and-suspenders: if the file already existed with looser perms,
-        // OpenOptions::mode is only honored on create. Re-apply explicitly.
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
-        Ok(())
-    }
-    #[cfg(not(unix))]
-    {
-        std::fs::write(path, bytes)
     }
 }
 

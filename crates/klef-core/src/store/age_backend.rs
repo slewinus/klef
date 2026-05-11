@@ -202,7 +202,8 @@ impl AgeBackend {
             std::fs::create_dir_all(parent).map_err(KlefError::Io)?;
         }
         let tmp = self.inner.path.with_extension("age.tmp");
-        std::fs::write(&tmp, &ciphertext).map_err(KlefError::IndexWrite)?;
+        // 0600 on ciphertext — narrower than umask even though encrypted.
+        crate::fsx::write_private(&tmp, &ciphertext).map_err(KlefError::IndexWrite)?;
         std::fs::rename(&tmp, &self.inner.path).map_err(KlefError::IndexWrite)?;
         Ok(())
     }

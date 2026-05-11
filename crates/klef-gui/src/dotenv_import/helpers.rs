@@ -77,7 +77,9 @@ pub fn rewrite_dotenv(
         }
     }
     let tmp = path.with_extension("env.tmp");
-    std::fs::write(&tmp, out)?;
+    // Mirror the original .env's perms (or 0600 if metadata missing) — never
+    // loosen. Unimported lines may still hold plaintext secrets.
+    klef_core::fsx::write_inheriting(&tmp, out.as_bytes(), path)?;
     std::fs::rename(&tmp, path)?;
     Ok(())
 }

@@ -98,16 +98,15 @@ pub(crate) fn validate_name(name: &str) -> Result<(), KlefError> {
 /// Validate that an env-var name is a POSIX shell-safe identifier
 /// (`^[A-Za-z_][A-Za-z0-9_]*$`).
 ///
-/// klef renders `export VAR=value` lines in `klef export` and the GUI may
-/// import names from `.env` files; an unvalidated `VAR` can become a shell
-/// injection vector if a downstream consumer pipes the output into `eval`.
-/// Defense-in-depth: refuse to *store* names that would render unsafely
-/// instead of relying on every consumer to escape them.
+/// Defense-in-depth: refuse to *store or render* names that would be
+/// unsafe through `klef export | eval`. Called both at write time
+/// (`add`, `update_meta`, `restore_phase_2`) and at render time
+/// (`klef export`) so that pre-validation legacy indexes are also caught.
 ///
 /// # Errors
 /// Returns `InvalidEnvVar` if empty, starting with a digit, or containing
 /// any character outside `[A-Za-z0-9_]`.
-pub(crate) fn validate_env_var(var: &str) -> Result<(), KlefError> {
+pub fn validate_env_var(var: &str) -> Result<(), KlefError> {
     let mut chars = var.chars();
     let first_ok = chars
         .next()

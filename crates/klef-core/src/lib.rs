@@ -7,6 +7,7 @@ pub mod backup;
 pub mod dto;
 pub mod envfile;
 pub mod error;
+pub mod fsx;
 pub mod store;
 
 #[cfg(target_os = "macos")]
