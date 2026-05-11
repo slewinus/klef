@@ -182,19 +182,22 @@ Les agents Claude Code, Cursor, ChatGPT peuvent ingérer ces fichiers et savoir 
 
 ## Statut
 
-✅ **v0.3.0** taggé (2026-05-06) — release majeure avec onboarding bulk + backup chiffré + organisation par tags. 14 commandes, distribution complète (cargo, Homebrew, binaires pré-compilés).
+✅ **v0.4.1** taggé (2026-05-11) — security patch sur v0.4.0. Cinq findings d'audit corrigés (validation `env_var` shell-safe, perms 0600 sur metadata, tempfile O_EXCL pour `--note-edit`, refonte de l'import dotenv GUI pour garder les plaintext côté Rust, doc de la redaction MCP comme best-effort).
 
-Nouveautés v0.3 :
-- `klef discover` scanne récursivement et propose un import bulk de tous les `.env` trouvés (avec `--skip-defaults` pour exclure le config non-secret)
-- `klef backup vault.age` + `klef restore` — dump chiffré complet via [age](https://github.com/FiloSottile/age), restore atomique 3-phases
-- **Tags** pour organiser : `klef add --tag billing --tag prod`, `klef list --tag ai`, `klef tags` pour le sommaire
-- `klef edit --note-edit` ouvre `$EDITOR` pour des notes multi-lignes
-- Complétion dynamique des noms de clés sur **bash + fish** (zsh shipped en v0.2)
-- Doc IA-friendly (`llms.txt`) suivant la convention [llmstxt.org](https://llmstxt.org/)
+Nouveautés v0.4 (cumulatif) :
+- **MCP server** (`klef mcp`) — `klef_list` (metadata) + `klef_run` (spawn process avec `klef:` refs injectées comme env vars) pour Claude Desktop / Claude Code. Policy TOML par règle, audit log NDJSON fail-closed, redaction byte-exact best-effort, denylist shell. Closes [#24](https://github.com/slewinus/klef/issues/24). Doc : [`docs/mcp.md`](./docs/mcp.md).
+- **GUI macOS** (`klef.app`) — app menu-bar (pas d'icône Dock, `LSUIElement=true`) avec popover ⌘⇧K. Recherche, copie auto-clear, drag-drop d'un `.env` pour bulk import + réécriture en `klef:` refs. Le binaire CLI est bundlé dans le `.app` pour install unifiée. Closes [#18](https://github.com/slewinus/klef/issues/18).
+- **`klef keychain configure`** (macOS) — désactive l'auto-lock du Keychain pour arrêter les prompts répétés. Idempotent, affiche la commande revert.
+- **Banner one-time** (macOS) qui pointe vers `keychain configure` quand le Keychain est verrouillé.
 
-- **Plateformes supportées** : macOS (Keychain natif) + Linux desktop (Secret Service via gnome-keyring / KWallet) + Linux headless / CI / Docker via `--backend age:./vault.age` (closes [#12](https://github.com/slewinus/klef/issues/12)).
-- **Hors-scope v0.3** : Windows, synchro multi-machines, GUI.
-- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones). v0.4+ : [#24](https://github.com/slewinus/klef/issues/24) MCP server, [#18](https://github.com/slewinus/klef/issues/18) GUI.
+Sécurité (v0.4.1) :
+- Validation `env_var` (`^[A-Za-z_][A-Za-z0-9_]*$`) au write **et** au render — ferme la voie `klef export | eval` même pour les indexes legacy.
+- Helper `klef_core::fsx::{write_private, write_inheriting}` : 0600 sur `index.json`, `audit.log`, `.age.tmp`, `backup.tmp` ; perms du fichier source préservées sur les rewrites `.env`.
+- Import dotenv GUI : plaintext jamais renvoyé au webview, session-id côté Rust avec TTL 5 min, single-use à l'apply.
+
+- **Plateformes supportées** : macOS (Keychain natif + GUI menu-bar) + Linux desktop (Secret Service) + Linux headless / CI / Docker via `--backend age:./vault.age` (closes [#12](https://github.com/slewinus/klef/issues/12)).
+- **Hors-scope** : Windows, synchro multi-machines.
+- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones). v0.5+ tracking dans [#125](https://github.com/slewinus/klef/issues/125) (clipboard côté Rust, MCP `output_policy`, retention audit log).
 
 ## Licence
 
