@@ -15,6 +15,10 @@ use tauri::{
 /// backend; backend selection (age) lands in S6 (post-MVP).
 pub struct AppState {
     pub store: klef_core::store::Store,
+    /// Server-side state for dotenv-import. See `dotenv_import` for the
+    /// threat model — plaintext values never round-trip through JS.
+    pub dotenv_sessions:
+        std::sync::Mutex<std::collections::HashMap<String, dotenv_import::ServerPlan>>,
 }
 
 // Tauri commands receive `State` and `String` by value per the macro contract
@@ -27,20 +31,15 @@ fn list_keys(state: tauri::State<'_, AppState>) -> Result<Vec<KeyDto>, String> {
     Ok(entries.into_iter().map(KeyDto::from).collect())
 }
 
-// `get_key_value` returns secret plaintext to the webview because the
-// clipboard plugin runs JS-side, not Rust-side. Surface and mitigations:
-//   - The webview also has `clipboard-manager:read-text` (granted in
-//     capabilities/default.json) for the auto-clear verification — it
-//     reads back the clipboard before clearing so we don't wipe content
-//     the user copied from elsewhere within the timeout window.
-//   - The CSP `connect-src` is restricted to Tauri IPC and 'self', so
-//     the secret cannot be exfiltrated to a remote host.
-//   - The Svelte side does not retain the secret beyond the copy call;
-//     the auto-clear timer keeps a copy of the last-written string only
-//     to compare it back, then drops it.
-//   - `edit_key` deliberately re-reads the value from the backend when
-//     the user edits metadata only, so a metadata-only update never
-//     surfaces the plaintext to JS in the first place.
+// Returns secret plaintext to the webview because the clipboard plugin
+// runs JS-side. Mitigations:
+//   - capabilities/default.json grants `clipboard-manager:read-text` for
+//     the auto-clear verification (reads back before clearing).
+//   - CSP `connect-src` is restricted to Tauri IPC + 'self' — no remote exfil.
+//   - Svelte side drops the secret after copy; auto-clear timer only keeps
+//     the string to compare-and-clear, then drops.
+//   - edit_key re-reads from the backend for metadata-only edits, so
+//     plaintext never reaches JS in that path.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 fn get_key_value(name: String, state: tauri::State<'_, AppState>) -> Result<String, String> {
@@ -57,10 +56,8 @@ fn add_key(
     tags: Vec<String>,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
-    // `force = false`: this command is for "Add", not "Update". The GUI
-    // surfaces a separate Edit form (S4.2) that calls add with force=true.
-    // env_var: None lets Store::add derive the default (`UPPERCASE_API_KEY`)
-    // exactly like the CLI does.
+    // force=false → "Add" not "Update". Edit form uses force=true via
+    // edit_key. env_var=None lets Store::add derive the CLI default.
     state
         .store
         .add(&name, &value, env_var, note, tags, false)
@@ -76,9 +73,7 @@ fn delete_key(name: String, state: tauri::State<'_, AppState>) -> Result<(), Str
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 fn record_access(name: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
-    // Called by the GUI after a successful clipboard copy. The CLI does
-    // NOT call this — `klef get` stays a pure read so a script piping
-    // it can't pollute the field.
+    // GUI-only — `klef get` stays a pure read so scripts can't pollute the field.
     state.store.record_access(&name).map_err(|e| e.to_string())
 }
 
@@ -218,7 +213,10 @@ fn main() {
             let store = build_store(None).map_err(|e| {
                 Box::<dyn std::error::Error>::from(format!("failed to build Store: {e}"))
             })?;
-            app.manage(AppState { store });
+            app.manage(AppState {
+                store,
+                dotenv_sessions: std::sync::Mutex::new(std::collections::HashMap::new()),
+            });
             eprintln!("klef-gui: store ready");
 
             // Tray icon: clicking it toggles the popover, anchored under the
@@ -293,6 +291,7 @@ fn main() {
             open_keychain_access,
             dotenv_import::preview_dotenv_import,
             dotenv_import::apply_dotenv_import,
+            dotenv_import::cancel_dotenv_import,
             quit_app
         ])
         .run(tauri::generate_context!())

@@ -67,14 +67,35 @@ impl Audit {
     pub fn record(&self, entry: &Entry<'_>) -> Result<(), AuditError> {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| AuditError(e.to_string()))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700));
+            }
         }
         let mut line = serde_json::to_vec(entry).map_err(|e| AuditError(e.to_string()))?;
         line.push(b'\n');
-        let mut f = OpenOptions::new()
-            .create(true)
-            .append(true)
+        // Audit log entries include argv / env-var names / cwd — never the
+        // resolved secret values, but still potentially-sensitive metadata.
+        // Open with mode 0600 on Unix so it doesn't inherit umask (commonly
+        // 022 → world-readable).
+        let mut opts = OpenOptions::new();
+        opts.create(true).append(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        let mut f = opts
             .open(&self.path)
             .map_err(|e| AuditError(format!("open {}: {e}", self.path.display())))?;
+        #[cfg(unix)]
+        {
+            // Belt-and-suspenders: if the file pre-existed with looser perms
+            // (mode is only honored on create), tighten it now.
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(0o600));
+        }
         f.write_all(&line).map_err(|e| AuditError(e.to_string()))?;
         f.sync_all().map_err(|e| AuditError(e.to_string()))?;
         Ok(())

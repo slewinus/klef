@@ -47,15 +47,12 @@
   let dotenvPlan = $state<DotenvPlan | null>(null);
   let pinned = $state(false);
 
-  // Pipeline: sort by recency, then project filter, then search query.
-  // Sort runs first so the recency order is preserved through filtering.
+  // Pipeline: sort by recency first so the order survives filtering.
   let visibleKeys = $derived(
     filterKeys(filterByProject(sortByLastUsed(keys), selectedProject), query),
   );
 
-  // Auto-clear a stale project filter: if the user just deleted the last
-  // key in a project, the chip would otherwise stay active and the list
-  // would look empty for no obvious reason.
+  // Auto-clear a stale project filter when its last key is deleted.
   $effect(() => {
     if (selectedProject === null) return;
     const tag = `project:${selectedProject}`;
@@ -77,7 +74,6 @@
       const s = loadSettings().autoClearSeconds;
       const suffix = s > 0 ? ` — clipboard clears in ${s}s` : "";
       showToast(`${key.name} copied${suffix}`);
-      // Optimistic update so the row jumps to top immediately.
       const now = new Date().toISOString();
       keys = keys.map((k) =>
         k.name === key.name ? { ...k, last_used_at: now } : k,
@@ -105,8 +101,7 @@
   async function handleAdded() {
     showAddModal = false;
     showToast("key added");
-    // Refresh from disk so we pick up the canonical KeyMeta (default
-    // env_var, sorted tags) rather than reconstructing it client-side.
+    // Refresh from disk for canonical KeyMeta (default env_var, sorted tags).
     keys = await listKeys();
   }
 
@@ -173,8 +168,7 @@
     }
   }
 
-  // Refresh keys + refocus the search bar. Called on mount and on each
-  // popover-shown event from Rust (see lib/popoverLifecycle).
+  // Refresh + refocus. Called on mount and on each popover-shown event.
   async function refresh() {
     try {
       keys = await listKeys();
@@ -187,17 +181,23 @@
     setTimeout(() => searchBar?.focus(), 0);
   }
 
-  onMount(async () => {
+  onMount(() => {
     refresh();
-    const teardownLife = await setupPopoverLifecycle(
-      () => refresh(),
-      () => anyModalOpen,
-      () => pinned,
-    );
-    const teardownDrop = await onDotenvDropped(handleDotenvDropped);
+    // onMount must return a sync teardown (Svelte 5); async setup runs in
+    // a fire-and-forget IIFE with teardowns captured by closure.
+    let tLife: (() => void) | undefined;
+    let tDrop: (() => void) | undefined;
+    void (async () => {
+      tLife = await setupPopoverLifecycle(
+        () => refresh(),
+        () => anyModalOpen,
+        () => pinned,
+      );
+      tDrop = await onDotenvDropped(handleDotenvDropped);
+    })();
     return () => {
-      teardownLife();
-      teardownDrop();
+      tLife?.();
+      tDrop?.();
     };
   });
 </script>

@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **`env_var` names are now validated** (`^[A-Za-z_][A-Za-z0-9_]*$`) in `klef_core::store` before being stored. `klef add --as`, `klef edit --as`, the GUI import path, and backup restore all reject names containing shell metacharacters. Previously a malicious `.env` file or backup bundle could smuggle a payload like `FOO; rm -rf $HOME #` that would render dangerously through `klef export | eval`. New `KlefError::InvalidEnvVar` variant.
+- **Index file and MCP audit log are now 0600 on Unix** (parent dirs 0700). Previously these files inherited the user's umask (commonly 022 → world-readable). They never contained secret values, but key names, env-var names, notes, tags, and audit metadata (argv, cwd, env_refs) are still potentially sensitive.
+- **`klef edit --note-edit` tempfile** now uses `tempfile::Builder` with `O_CREAT|O_EXCL` and mode 0600 on Unix. Previously a predictable `/tmp/klef-edit-<pid>-<nanos>.txt` allowed symlink races on shared systems.
+- **GUI dotenv import refactored to keep plaintext server-side.** `preview_dotenv_import` now returns only redacted previews + a session id; the actual parsed values stay in Rust state keyed by that id. `apply_dotenv_import` looks the plan up by session id and uses the canonicalized `source_path` stored at preview time — the webview can no longer round-trip values or override the write target. New `cancel_dotenv_import` command lets the modal explicitly free the session. Threat model documented in module header.
+- **`docs/mcp.md`** clarifies that MCP stream redaction is a guardrail, not a DLP barrier — values <5 bytes, encoded variants, and partial leaks are explicitly out of scope. The hard guarantee is the policy denylist + argv allowlist + audit log.
+
 ### Fixed
 
 - **GUI (klef-gui)** : `LSUIElement=true` ajouté au bundle macOS via `crates/klef-gui/Info.plist`. L'app est purement menu-bar — elle n'apparaît plus dans le Dock (et donc plus de carré bleu générique quand le cache LaunchServices est désynchronisé après reboot).
+- **`npm run check`** (svelte-check) is now clean: `onMount` async-callback typing in `ui/App.svelte` rewritten to return a synchronous teardown.
 
 ## [0.4.0] - 2026-05-08
 

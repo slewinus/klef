@@ -25,15 +25,14 @@ impl Store {
         self.backend.describe()
     }
 
-    /// Inter-process lock for the meta store. Held by all mutating ops
-    /// across their load → mutate → save sequence (closes #61).
+    /// Inter-process lock held across load → mutate → save (closes #61).
     fn lock(&self) -> Result<FileLock, KlefError> {
         FileLock::acquire(&self.meta.lock_path())
     }
 
-    /// Add or update a secret by name, optionally with env-var, note, and tags metadata.
+    /// Add or update a secret by name, optionally with metadata.
     /// # Errors
-    /// Returns `InvalidKeyName`, `KeyAlreadyExists`, or a backend/index error.
+    /// `InvalidKeyName`, `InvalidEnvVar`, `KeyAlreadyExists`, or backend/index.
     pub fn add(
         &self,
         name: &str,
@@ -44,6 +43,8 @@ impl Store {
         force: bool,
     ) -> Result<(), KlefError> {
         super::validate_name(name)?;
+        let resolved_env_var = env_var.unwrap_or_else(|| super::default_env_var(name));
+        super::validate_env_var(&resolved_env_var)?;
         let _lock = self.lock()?;
         let mut data = self.meta.load_index()?;
         if data.keys.contains_key(name) && !force {
@@ -55,15 +56,14 @@ impl Store {
         sorted_tags.dedup();
         // Preserve last_used_at across re-adds (metadata edits shouldn't reset it).
         let meta = KeyMeta {
-            env_var: env_var.unwrap_or_else(|| super::default_env_var(name)),
+            env_var: resolved_env_var,
             note,
             tags: sorted_tags,
             added_at: data.keys.get(name).map_or(now, |k| k.added_at),
             updated_at: now,
             last_used_at: data.keys.get(name).and_then(|k| k.last_used_at),
         };
-        // Atomicity (#48): snapshot prior, write new, save index; on index
-        // failure restore prior — see tests/store_atomicity.rs.
+        // Atomicity (#48): snapshot → write → save; restore on save failure.
         let prior = self.backend.get(name).ok();
         self.backend.set(name, value)?;
         data.keys.insert(name.to_string(), meta);
@@ -111,9 +111,9 @@ impl Store {
         Ok(counts)
     }
 
-    /// Retrieve the secret value by name.
+    /// Retrieve the secret value.
     /// # Errors
-    /// Returns `KeyNotFound` if the key does not exist, or a backend error.
+    /// `KeyNotFound` or backend error.
     pub fn get_value(&self, name: &str) -> Result<String, KlefError> {
         let data = self.meta.load_index()?;
         if !data.keys.contains_key(name) {
@@ -124,7 +124,7 @@ impl Store {
 
     /// List all stored keys and their metadata.
     /// # Errors
-    /// Returns an error if the index fails to load.
+    /// Index load failure.
     pub fn list(&self) -> Result<Vec<(String, KeyMeta)>, KlefError> {
         let data = self.meta.load_index()?;
         Ok(data.keys.into_iter().collect())
@@ -132,16 +132,14 @@ impl Store {
 
     /// Remove a secret and its metadata.
     /// # Errors
-    /// Returns `KeyNotFound` if the key does not exist, or an index error.
+    /// `KeyNotFound` or an index error.
     pub fn remove(&self, name: &str) -> Result<(), KlefError> {
         let _lock = self.lock()?;
         let mut data = self.meta.load_index()?;
         if !data.keys.contains_key(name) {
             return Err(KlefError::KeyNotFound(name.to_string()));
         }
-        // Tolerate `KeyNotFound` (the secret may already be gone — manual
-        // deletion, concurrent rm, etc.) but propagate any other backend error
-        // so callers don't believe the secret is gone when it isn't.
+        // Tolerate KeyNotFound (concurrent rm), propagate other backend errors.
         match self.backend.remove(name) {
             Ok(()) | Err(KlefError::KeyNotFound(_)) => {}
             Err(e) => return Err(e),
@@ -151,10 +149,9 @@ impl Store {
         Ok(())
     }
 
-    /// Record that the user just copied this key. Updates `last_used_at`.
-    /// Intentionally NOT called by `get_value` — only the GUI invokes this.
+    /// Record a copy (updates `last_used_at`). GUI-only.
     /// # Errors
-    /// `KeyNotFound` if the key does not exist, or an index error.
+    /// `KeyNotFound` or index error.
     pub fn record_access(&self, name: &str) -> Result<(), KlefError> {
         let _lock = self.lock()?;
         let mut data = self.meta.load_index()?;
@@ -167,9 +164,9 @@ impl Store {
         Ok(())
     }
 
-    /// Retrieve metadata for a specific key.
+    /// Retrieve metadata for a key.
     /// # Errors
-    /// Returns `KeyNotFound` if the key does not exist, or an index error.
+    /// `KeyNotFound` or index error.
     pub fn meta(&self, name: &str) -> Result<KeyMeta, KlefError> {
         let data = self.meta.load_index()?;
         data.keys
@@ -179,9 +176,9 @@ impl Store {
     }
 
     /// Update the env-var and/or note for a key.
-    /// `None` fields are unchanged; `Some(None)` clears the note.
+    /// `None` keeps the existing value; `Some(None)` clears the note.
     /// # Errors
-    /// Returns `KeyNotFound` if the key does not exist, or an index error.
+    /// `KeyNotFound` or an index error.
     pub fn update_meta(
         &self,
         name: &str,
@@ -195,6 +192,7 @@ impl Store {
             .get_mut(name)
             .ok_or_else(|| KlefError::KeyNotFound(name.to_string()))?;
         if let Some(v) = env_var {
+            super::validate_env_var(&v)?;
             meta.env_var = v;
         }
         if let Some(n) = note {
@@ -207,9 +205,9 @@ impl Store {
 
     /// Rename a secret.
     /// # Errors
-    /// Returns `KeyNotFound`, `KeyAlreadyExists`, `InvalidKeyName`, or a backend/index error.
+    /// `KeyNotFound`, `KeyAlreadyExists`, `InvalidKeyName`, or backend/index.
     /// # Panics
-    /// Panics on internal inconsistency (old key in index but not removable).
+    /// On internal inconsistency (old key in index but not removable).
     pub fn rename(&self, old: &str, new: &str) -> Result<(), KlefError> {
         super::validate_name(new)?;
         let _lock = self.lock()?;
@@ -220,8 +218,7 @@ impl Store {
         if data.keys.contains_key(new) {
             return Err(KlefError::KeyAlreadyExists(new.to_string()));
         }
-        // Atomicity (#48): set new → save index → remove old. Save failure
-        // undoes new; old removal is best-effort (leaked old shows as orphan).
+        // Atomicity (#48): set new → save → remove old; on save fail undo new.
         let value = self.backend.get(old)?;
         self.backend.set(new, &value)?;
         let mut meta = data.keys.remove(old).expect("checked above");
@@ -235,18 +232,23 @@ impl Store {
         Ok(())
     }
 
-    /// Restore Phase 1: write entry value to the backend only (no index write).
+    /// Restore Phase 1: backend write only (no index touch).
     /// # Errors
-    /// Returns an error if the backend write fails.
+    /// Backend write failure.
     pub fn restore_phase_1(&self, entry: &BundleEntry) -> Result<(), KlefError> {
         let _lock = self.lock()?;
         self.backend.set(&entry.name, &entry.value)
     }
 
-    /// Restore Phase 2: rewrite the index from a list of bundle entries.
+    /// Restore Phase 2: rewrite index from bundle entries.
     /// # Errors
-    /// Returns an error if the index save fails.
+    /// `InvalidKeyName`, `InvalidEnvVar`, or an index save failure.
     pub fn restore_phase_2(&self, entries: &[BundleEntry]) -> Result<(), KlefError> {
+        // Reject malformed names/env-vars before index write (#-injection).
+        for entry in entries {
+            super::validate_name(&entry.name)?;
+            super::validate_env_var(&entry.env_var)?;
+        }
         let _lock = self.lock()?;
         let mut data = self.meta.load_index()?;
         for entry in entries {
@@ -279,11 +281,10 @@ impl Store {
         Ok(orphans)
     }
 
-    /// Return key names in the backend that are missing from the index.
-    /// `Ok(None)` means the backend cannot enumerate (keychain) — closes #49.
+    /// Backend keys missing from the index. `Ok(None)` = backend can't
+    /// enumerate (keychain) — closes #49.
     /// # Errors
-    /// Returns an error if enumeration is supported but fails, or the index
-    /// can't be loaded.
+    /// Enumeration or index-load failure.
     pub fn orphan_backend_entries(&self) -> Result<Option<Vec<String>>, KlefError> {
         let Some(backend_keys) = self.backend.list_names()? else {
             return Ok(None);

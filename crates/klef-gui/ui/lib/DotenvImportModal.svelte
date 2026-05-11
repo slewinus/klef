@@ -1,6 +1,10 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { applyDotenvImport, type DotenvPlan } from "./api";
+  import {
+    applyDotenvImport,
+    cancelDotenvImport,
+    type DotenvPlan,
+  } from "./api";
 
   interface Props {
     plan: DotenvPlan;
@@ -9,6 +13,13 @@
   }
 
   let { plan, onClose, onImported }: Props = $props();
+
+  // Tell the Rust side to drop the server-side plan when the user cancels.
+  // (apply_dotenv_import consumes the session itself on submit.)
+  function cancelAndClose() {
+    void cancelDotenvImport(plan.session_id).catch(() => {});
+    onClose();
+  }
 
   // The modal is mounted/unmounted per-import (see {#if dotenvPlan} in
   // App.svelte) so we want a one-shot snapshot, not a reactive binding.
@@ -47,12 +58,14 @@
     submitting = true;
     error = null;
     try {
-      const items = plan.items.filter((it) => included[it.env_var]);
+      const accepted = plan.items
+        .filter((it) => included[it.env_var])
+        .map((it) => it.env_var);
       const count = await applyDotenvImport(
-        items,
+        plan.session_id,
         project.trim(),
         rewriteSource,
-        plan.source_path,
+        accepted,
       );
       onImported(count);
     } catch (err) {
@@ -65,7 +78,7 @@
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") {
       e.stopPropagation();
-      onClose();
+      cancelAndClose();
     }
   }
 </script>
@@ -77,8 +90,8 @@
   role="button"
   tabindex="-1"
   aria-label="Close dialog"
-  onclick={onClose}
-  onkeydown={(e) => e.key === "Enter" && onClose()}
+  onclick={cancelAndClose}
+  onkeydown={(e) => e.key === "Enter" && cancelAndClose()}
 ></div>
 <form class="modal" onsubmit={submit}>
   <h2>Import .env</h2>
@@ -134,7 +147,7 @@
   {/if}
 
   <div class="actions">
-    <button type="button" class="cancel" onclick={onClose} disabled={submitting}>
+    <button type="button" class="cancel" onclick={cancelAndClose} disabled={submitting}>
       Cancel
     </button>
     <button

@@ -76,12 +76,14 @@ export interface DotenvPlanItem {
   env_var: string;
   klef_name: string;
   redacted_value: string;
-  value: string;
   /** "new" | "conflict" | "ref" | "empty" */
   status: string;
 }
 
+/** Preview plan returned by the Rust side. The plaintext values stay
+ *  server-side, keyed by `session_id`; the webview never sees them. */
 export interface DotenvPlan {
+  session_id: string;
   suggested_project: string;
   items: DotenvPlanItem[];
   source_path: string;
@@ -92,15 +94,22 @@ export function previewDotenvImport(path: string): Promise<DotenvPlan> {
 }
 
 export function applyDotenvImport(
-  items: DotenvPlanItem[],
+  sessionId: string,
   project: string,
   rewriteSource: boolean,
-  sourcePath: string,
+  /** `env_var` names the user accepted. The server canonicalized the
+   *  source path at preview time and ignores anything the webview tries
+   *  to override. */
+  accepted: string[],
 ): Promise<number> {
   return invoke<number>("apply_dotenv_import", {
-    items,
+    sessionId,
     project,
     rewriteSource,
-    sourcePath,
+    accepted,
   });
+}
+
+export function cancelDotenvImport(sessionId: string): Promise<void> {
+  return invoke<void>("cancel_dotenv_import", { sessionId });
 }

@@ -23,6 +23,10 @@ pub enum KlefError {
     KeyAlreadyExists(String),
     #[error("invalid key name '{0}': use only alphanumeric, dash, or underscore")]
     InvalidKeyName(String),
+    #[error(
+        "invalid env-var name '{0}': must match [A-Za-z_][A-Za-z0-9_]* (POSIX shell-safe identifier)"
+    )]
+    InvalidEnvVar(String),
     #[error("env file not found: {0}. Check the path or pass --env-file <FILE>")]
     EnvFileNotFound(PathBuf),
     #[error(

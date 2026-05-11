@@ -71,18 +71,29 @@ impl IndexFile {
 
     /// Save index data atomically (write to temp, rename to final).
     ///
+    /// On Unix, the parent directory is created with mode 0700 and the file
+    /// itself is written with mode 0600 — the index contains key names,
+    /// env-var names, notes, and tags, which can be sensitive metadata even
+    /// though secret values live in the OS keychain. Without explicit modes
+    /// the file would inherit the user's umask (commonly 022 → world-readable).
+    ///
     /// # Errors
     /// Returns `IndexWrite` for file system errors, `IndexCorrupt` for serialization errors.
     pub fn save(&self, data: &IndexData) -> Result<(), KlefError> {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent).map_err(KlefError::IndexWrite)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700));
+            }
         }
         let tmp = self.path.with_extension("json.tmp");
         let bytes = serde_json::to_vec_pretty(data).map_err(|e| KlefError::IndexCorrupt {
             path: self.path.clone(),
             reason: e.to_string(),
         })?;
-        std::fs::write(&tmp, bytes).map_err(KlefError::IndexWrite)?;
+        write_private_file(&tmp, &bytes).map_err(KlefError::IndexWrite)?;
         std::fs::rename(&tmp, &self.path).map_err(KlefError::IndexWrite)?;
         Ok(())
     }
@@ -90,6 +101,34 @@ impl IndexFile {
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
+    }
+}
+
+/// Write `bytes` to `path` with mode 0600 on Unix (`O_CREAT|O_WRONLY|O_TRUNC`,
+/// 0o600). On non-Unix platforms, falls back to `std::fs::write`.
+///
+/// Used for the index `.tmp` file before rename, and for any other metadata
+/// file that should not inherit the user's umask.
+fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)?;
+        f.write_all(bytes)?;
+        // Belt-and-suspenders: if the file already existed with looser perms,
+        // OpenOptions::mode is only honored on create. Re-apply explicitly.
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, bytes)
     }
 }
 

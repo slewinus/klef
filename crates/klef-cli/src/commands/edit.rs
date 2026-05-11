@@ -1,7 +1,7 @@
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 use std::io::{IsTerminal, Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 /// Edit a key: update value (no flags) or metadata only (with --note, --as, or --note-edit).
@@ -110,7 +110,19 @@ fn run_note_edit(store: &Store, name: &str, current: Option<&str>) -> Result<(),
 }
 
 fn edit_via_external(editor: &str, current: &str) -> Result<String, KlefError> {
-    let path = scratch_path();
+    // Notes can be sensitive — use a tempfile with O_CREAT|O_EXCL (atomic
+    // create) and mode 0600 on Unix. Prior implementation used a predictable
+    // /tmp/klef-edit-<pid>-<nanos>.txt which is vulnerable to symlink races
+    // on shared systems.
+    let mut builder = tempfile::Builder::new();
+    builder.prefix("klef-edit-").suffix(".txt");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(std::fs::Permissions::from_mode(0o600));
+    }
+    let tmp = builder.tempfile().map_err(KlefError::Io)?;
+    let path = tmp.path().to_path_buf();
     std::fs::write(&path, current).map_err(KlefError::Io)?;
 
     let parts: Vec<&str> = editor.split_whitespace().collect();
@@ -132,7 +144,8 @@ fn edit_via_external(editor: &str, current: &str) -> Result<String, KlefError> {
         }
     });
 
-    let _ = std::fs::remove_file(&path);
+    // `tmp` drops here and unlinks the file; the explicit close is for clarity.
+    drop(tmp);
     result
 }
 
@@ -147,14 +160,6 @@ fn prompt_note_stdin(name: &str, current: Option<&str>) -> Result<String, KlefEr
         .read_line(&mut buf)
         .map_err(KlefError::Io)?;
     Ok(buf)
-}
-
-fn scratch_path() -> PathBuf {
-    let pid = std::process::id();
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    std::env::temp_dir().join(format!("klef-edit-{pid}-{nanos}.txt"))
 }
 
 fn io_other(msg: &str) -> KlefError {
