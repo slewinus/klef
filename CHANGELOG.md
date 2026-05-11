@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-05-11
+
+Security patch — five findings from two consecutive audit passes plus a
+GUI-bundle fix. No functional regressions; all callers stay binary-compatible
+(see notes per item). `klef-core` bumped to 0.3.0 because the public surface
+grew (new `fsx` module, `validate_env_var` promoted to `pub`, new
+`KlefError::InvalidEnvVar` variant). `klef-gui` to 0.2.1.
+
 ### Security
 
 - **GUI preview sessions now have a 5-min TTL**, pruned opportunistically on every `preview_dotenv_import` and `apply_dotenv_import`. Previously the plaintext values held server-side could linger in RAM until LRU eviction (up to 8 imports later) if the user dismissed the popover without explicit cancel or apply. The hard guarantees (no plaintext in JS, server-side path canonicalization, single-use sessions) are unchanged.

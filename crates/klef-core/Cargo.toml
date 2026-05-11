@@ -1,6 +1,6 @@
 [package]
 name = "klef-core"
-version = "0.2.0"
+version = "0.3.0"
 description = "Core library for klef: storage backends, secret index, env-file parsing."
 edition.workspace = true
 license.workspace = true
