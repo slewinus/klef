@@ -1,55 +1,55 @@
 # klef
 
-> **klef stocke tes clés API dans le Keychain de l'OS et les résout au runtime dans tes `.env` (`STRIPE_KEY=klef:stripe`). Pas de mot de passe maître, pas de cloud, pas de plaintext sur disque.**
+> **klef stores your API keys in the OS Keychain and resolves them at runtime in your `.env` (`STRIPE_KEY=klef:stripe`). No master password, no cloud, no plaintext on disk.**
 
 [![Crates.io](https://img.shields.io/crates/v/klef.svg)](https://crates.io/crates/klef)
 [![CI](https://github.com/slewinus/klef/actions/workflows/ci.yml/badge.svg)](https://github.com/slewinus/klef/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-lightgrey)](#statut)
+[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-lightgrey)](#status)
 
-Un coffre local pour tes clés API et secrets — pour arrêter de les perdre dans Dashlane, Notes, ou des `.env` éparpillés.
+A local vault for your API keys and secrets — so you stop losing them in Dashlane, Notes, or scattered `.env` files.
 
-## Le problème
+## The problem
 
-Tu as 15 clés API (Stripe, Anthropic, OpenAI, Gemini, Telnyx, etc.). Tu les notes dans Dashlane, dans des fichiers texte, dans des `.env` perdus. Quand tu démarres un projet, tu passes 10 minutes à les retrouver — et le pire, tu copies-colles la valeur dans le `.env` du projet, donc elle traîne en clair sur ton disque.
+You have 15 API keys (Stripe, Anthropic, OpenAI, Gemini, Telnyx, etc.). You stash them in Dashlane, in text files, in lost `.env` files. When you start a project, you spend 10 minutes hunting them down — and worst of all, you copy-paste the value into the project's `.env`, so it lingers in plaintext on your disk.
 
-## La solution
+## The solution
 
-Un CLI local qui :
-- **Stocke** tes clés dans le Keychain de l'OS — chiffrement géré par Apple/GNOME, pas par nous.
-- **Récupère** une clé en une commande : `klef get stripe`.
-- **Injecte** les valeurs dans tes projets via des **références** dans le `.env` plutôt que des valeurs en clair :
+A local CLI that:
+- **Stores** your keys in the OS Keychain — encryption handled by Apple/GNOME, not by us.
+- **Retrieves** a key with a single command: `klef get stripe`.
+- **Injects** values into your projects through **references** in the `.env` instead of plaintext values:
   ```
-  STRIPE_KEY=klef:stripe          # référence — résolue au runtime
-  ANTHROPIC_KEY=klef:anthropic    # idem
+  STRIPE_KEY=klef:stripe          # reference — resolved at runtime
+  ANTHROPIC_KEY=klef:anthropic    # same
   ```
-  Puis `klef run -- npm start` résout tout ça et exécute ta commande avec les bonnes vars d'env.
-- **Reste 100% local** — pas de serveur, pas de cloud, pas de télémétrie.
+  Then `klef run -- npm start` resolves it all and runs your command with the right env vars.
+- **Stays 100% local** — no server, no cloud, no telemetry.
 
-## Pourquoi pas un autre outil ?
+## Why not another tool?
 
 | | klef | 1Password CLI | doppler / infisical | direnv + .env |
 |---|---|---|---|---|
-| Local-first | ✅ | ❌ (compte 1P) | ❌ (cloud) | ✅ |
-| Stockage Keychain natif | ✅ | via `op` | ❌ | ❌ |
-| Références dans `.env` | ✅ `klef:` | ✅ `op://` | ✅ `{{var}}` | ❌ littéral |
-| Pas de mot de passe maître | ✅ (Touch ID) | ❌ | ❌ | ✅ |
-| Gratuit | ✅ | $3/mois | freemium | ✅ |
+| Local-first | ✅ | ❌ (1P account) | ❌ (cloud) | ✅ |
+| Native Keychain storage | ✅ | via `op` | ❌ | ❌ |
+| References in `.env` | ✅ `klef:` | ✅ `op://` | ✅ `{{var}}` | ❌ literal |
+| No master password | ✅ (Touch ID) | ❌ | ❌ | ✅ |
+| Free | ✅ | $3/month | freemium | ✅ |
 | Multi-machine sync | ❌ (v0.4) | ✅ | ✅ | ❌ |
 
-klef cible le cas mono-utilisateur, mono-machine, local-first, gratuit. Les concurrents sont excellents — c'est juste une niche différente. (Comparaison vérifiée le 2026-05-06.)
+klef targets the single-user, single-machine, local-first, free use case. The competitors are excellent — it's just a different niche. (Comparison verified on 2026-05-06.)
 
-## Démo
+## Demo
 
 ```bash
-# Tu as un .env qui traîne avec des secrets en clair :
+# You have a .env lying around with plaintext secrets:
 $ cat .env
 STRIPE_API_KEY=sk_live_xyz
 ANTHROPIC_API_KEY=sk-ant-zzz
 PORT=3000
 
-# Une commande pour tout importer dans le Keychain et réécrire le .env en références :
+# One command to import everything into the Keychain and rewrite the .env as references:
 $ klef import .env --rewrite
 ENV VAR             KLEF NAME             VALUE
 STRIPE_API_KEY      stripe-api-key        sk_l*** (16 chars)
@@ -67,18 +67,18 @@ STRIPE_API_KEY=klef:stripe-api-key
 ANTHROPIC_API_KEY=klef:anthropic-api-key
 PORT=klef:port
 
-# Maintenant lance ton app comme avant — klef résout les références à la volée :
+# Now run your app like before — klef resolves the references on the fly:
 $ klef run -- node app.js
 Server on port 3000, Stripe wired ✓
 ```
 
 [![asciicast](https://asciinema.org/a/5z9zCmNWd1igb3MH.svg)](https://asciinema.org/a/5z9zCmNWd1igb3MH)
 
-_Cast source : [`docs/klef-demo.cast`](./docs/klef-demo.cast) — re-uploadable si asciinema.org tombe._
+_Cast source: [`docs/klef-demo.cast`](./docs/klef-demo.cast) — re-uploadable if asciinema.org goes down._
 
 ## Install
 
-### Cargo (recommandé)
+### Cargo (recommended)
 
 ```bash
 cargo install klef
@@ -91,11 +91,11 @@ brew tap slewinus/tap
 brew install klef
 ```
 
-### Binaires pré-compilés
+### Pre-built binaries
 
-Disponibles sur la [page Releases](https://github.com/slewinus/klef/releases) — macOS Intel + Apple Silicon, Linux x86_64 + ARM. Décompresser et déplacer dans le `$PATH`.
+Available on the [Releases page](https://github.com/slewinus/klef/releases) — macOS Intel + Apple Silicon, Linux x86_64 + ARM. Unpack and move into your `$PATH`.
 
-### Auto-complétion shell
+### Shell auto-completion
 
 ```bash
 # zsh
@@ -108,42 +108,42 @@ klef completions bash > /usr/local/etc/bash_completion.d/klef
 klef completions fish > ~/.config/fish/completions/klef.fish
 ```
 
-> La complétion statique des sous-commandes et des flags fonctionne dès aujourd'hui. La complétion dynamique des noms de clés (ex. `klef get <TAB>`) est suivie dans [#28](https://github.com/slewinus/klef/issues/28) et pas encore implémentée.
+> Static completion of subcommands and flags works today. Dynamic completion of key names (e.g. `klef get <TAB>`) is tracked in [#28](https://github.com/slewinus/klef/issues/28) and not yet implemented.
 
-## Commandes
+## Commands
 
-| Commande | Rôle |
+| Command | Role |
 |---|---|
-| `klef add <name>` | Ajouter une clé (prompt TTY ou stdin). Avec `--value-from-file <FILE>` pour les secrets multi-lignes (PEM, JSON). |
-| `klef get <name>` | Afficher la valeur (pipeable). |
-| `klef show <name>` | Valeur + métadonnées. |
-| `klef list [--format table\|json] [-v\|--verbose] [--filter PATTERN]` | Lister les clés (jamais les valeurs). `--verbose` ajoute la date d'ajout, `--filter` cherche en sous-chaîne. |
-| `klef rm <name>` (alias `remove`) | Supprimer une clé. |
-| `klef edit <name>` | Changer la valeur ou les métadonnées. `--value-from-file` pour les secrets multi-lignes. `--note-edit` ouvre `$VISUAL`/`$EDITOR` pour éditer la note. |
-| `klef set-note <name> <text>` | Raccourci pour `edit --note`. |
-| `klef rename <old> <new>` | Renommer une clé. |
-| `klef export <name>... [--format shell\|dotenv]` | Émettre des lignes `export`. |
-| `klef import <file.env> [--prefix P] [--dry-run] [--rewrite] [--yes]` | Bulk-import depuis un `.env` existant. `--rewrite` remplace les valeurs littérales par des références `klef:` dans le fichier source. |
-| `klef run [--env-file FILE] -- <cmd>` | Résoudre `klef:<name>` dans `.env` et exec `<cmd>`. |
-| `klef status [--format text\|json]` | Diagnostic : version, backend, index path, nombre de clés, désync. Exit 1 si désync. |
-| `klef completions <shell>` | Générer le script d'auto-complétion. |
+| `klef add <name>` | Add a key (TTY prompt or stdin). Use `--value-from-file <FILE>` for multi-line secrets (PEM, JSON). |
+| `klef get <name>` | Print the value (pipeable). |
+| `klef show <name>` | Value + metadata. |
+| `klef list [--format table\|json] [-v\|--verbose] [--filter PATTERN]` | List keys (never values). `--verbose` adds the date added, `--filter` does substring search. |
+| `klef rm <name>` (alias `remove`) | Remove a key. |
+| `klef edit <name>` | Change the value or metadata. `--value-from-file` for multi-line secrets. `--note-edit` opens `$VISUAL`/`$EDITOR` to edit the note. |
+| `klef set-note <name> <text>` | Shortcut for `edit --note`. |
+| `klef rename <old> <new>` | Rename a key. |
+| `klef export <name>... [--format shell\|dotenv]` | Emit `export` lines. |
+| `klef import <file.env> [--prefix P] [--dry-run] [--rewrite] [--yes]` | Bulk-import from an existing `.env`. `--rewrite` replaces literal values with `klef:` references in the source file. |
+| `klef run [--env-file FILE] -- <cmd>` | Resolve `klef:<name>` in `.env` and exec `<cmd>`. |
+| `klef status [--format text\|json]` | Diagnostics: version, backend, index path, key count, desync. Exit 1 on desync. |
+| `klef completions <shell>` | Generate the auto-completion script. |
 
-`klef --help` ou `klef <cmd> --help` pour les détails de chaque option.
+Run `klef --help` or `klef <cmd> --help` for the details of each option.
 
 ## Stack
 
-- **Langage** : Rust (édition 2024)
-- **Stockage** : Keychain natif via [`keyring`](https://crates.io/crates/keyring) — Apple Security framework sur macOS, Secret Service sur Linux.
-- **CLI** : [`clap`](https://crates.io/crates/clap) (derive)
-- **Pas de serveur, pas de cloud, pas de compte, pas de télémétrie.**
+- **Language**: Rust (2024 edition)
+- **Storage**: native Keychain via [`keyring`](https://crates.io/crates/keyring) — Apple Security framework on macOS, Secret Service on Linux.
+- **CLI**: [`clap`](https://crates.io/crates/clap) (derive)
+- **No server, no cloud, no account, no telemetry.**
 
 ## Dev
 
 ```bash
-# Setup hooks (à faire une fois après le clone)
+# Setup hooks (run once after clone)
 ./scripts/setup-dev.sh
 
-# Build / test (cargo workspace : klef-core + klef-cli + klef-gui)
+# Build / test (cargo workspace: klef-core + klef-cli + klef-gui)
 cargo build --workspace
 cargo test --workspace --all-features
 cargo run -p klef -- --help
@@ -151,54 +151,54 @@ cargo run -p klef -- --help
 
 ### GUI (klef-gui)
 
-Le crate Tauri a un frontend Svelte qui doit être bundlé avant un `cargo build/run -p klef-gui` (parce que `tauri::generate_context!` valide `frontendDist` au compile time) :
+The Tauri crate has a Svelte frontend that must be bundled before any `cargo build/run -p klef-gui` (because `tauri::generate_context!` validates `frontendDist` at compile time):
 
 ```bash
 cd crates/klef-gui
-npm ci                # une fois
-npm run build         # à chaque modif du frontend (ou utiliser `npm run dev` en parallèle de cargo run)
+npm ci                # once
+npm run build         # on every frontend change (or use `npm run dev` alongside cargo run)
 cd ../..
-cargo run -p klef-gui # menu bar mode : icône en haut à droite, clic pour ouvrir (pas d'icône Dock — LSUIElement=true)
+cargo run -p klef-gui # menu bar mode: icon top-right, click to open (no Dock icon — LSUIElement=true)
 ```
 
-Les hooks git (`fmt`, `clippy`, `tests`, line-cap < 300 lignes/fichier) sont versionnés dans `.githooks/`. CI sur macOS + Ubuntu via GitHub Actions (`.github/workflows/ci.yml`).
+The git hooks (`fmt`, `clippy`, `tests`, line-cap < 300 lines/file) are versioned under `.githooks/`. CI on macOS + Ubuntu via GitHub Actions (`.github/workflows/ci.yml`).
 
 ## Documentation
 
-- **Quickstart** : [examples/quickstart/](./examples/quickstart/) — `.env` + script consommateur, smoke test bout-en-bout.
-- **macOS users** : si tu vois des prompts de mot de passe fréquents, lance `klef keychain configure` une fois — voir [`docs/macos-keychain.md`](./docs/macos-keychain.md).
-- **Changelog** : [CHANGELOG.md](./CHANGELOG.md)
+- **Quickstart**: [examples/quickstart/](./examples/quickstart/) — `.env` + consumer script, end-to-end smoke test.
+- **macOS users**: if you see frequent password prompts, run `klef keychain configure` once — see [`docs/macos-keychain.md`](./docs/macos-keychain.md).
+- **Changelog**: [CHANGELOG.md](./CHANGELOG.md)
 
-## Pour les agents IA
+## For AI agents
 
-klef expose une documentation pensée pour les assistants IA :
+klef ships documentation designed for AI assistants:
 
-- **[`llms.txt`](./llms.txt)** : index de navigation (convention [llmstxt.org](https://llmstxt.org/))
-- **[`llms-full.txt`](./llms-full.txt)** : doc concaténée pour ingestion en un prompt
-- **[`docs/llm-usage.md`](./docs/llm-usage.md)** : patterns concrets — décision table, exit codes, JSON outputs
-- **[`docs/mcp.md`](./docs/mcp.md)** : MCP server (`klef mcp`) — let Claude/Cursor use your keys without ever seeing the plaintext value.
+- **[`llms.txt`](./llms.txt)**: navigation index (following the [llmstxt.org](https://llmstxt.org/) convention)
+- **[`llms-full.txt`](./llms-full.txt)**: concatenated doc for single-prompt ingestion
+- **[`docs/llm-usage.md`](./docs/llm-usage.md)**: concrete patterns — decision table, exit codes, JSON outputs
+- **[`docs/mcp.md`](./docs/mcp.md)**: MCP server (`klef mcp`) — let Claude/Cursor use your keys without ever seeing the plaintext value.
 
-Les agents Claude Code, Cursor, ChatGPT peuvent ingérer ces fichiers et savoir comment piloter klef sans hallucination.
+Claude Code, Cursor and ChatGPT agents can ingest these files and know how to drive klef without hallucinating.
 
-## Statut
+## Status
 
-✅ **v0.4.1** taggé (2026-05-11) — security patch sur v0.4.0. Cinq findings d'audit corrigés (validation `env_var` shell-safe, perms 0600 sur metadata, tempfile O_EXCL pour `--note-edit`, refonte de l'import dotenv GUI pour garder les plaintext côté Rust, doc de la redaction MCP comme best-effort).
+✅ **v0.4.1** tagged (2026-05-11) — security patch on v0.4.0. Five audit findings fixed (shell-safe `env_var` validation, 0600 perms on metadata, O_EXCL tempfile for `--note-edit`, GUI dotenv import reworked to keep plaintext on the Rust side, MCP redaction documented as best-effort).
 
-Nouveautés v0.4 (cumulatif) :
-- **MCP server** (`klef mcp`) — `klef_list` (metadata) + `klef_run` (spawn process avec `klef:` refs injectées comme env vars) pour Claude Desktop / Claude Code. Policy TOML par règle, audit log NDJSON fail-closed, redaction byte-exact best-effort, denylist shell. Closes [#24](https://github.com/slewinus/klef/issues/24). Doc : [`docs/mcp.md`](./docs/mcp.md).
-- **GUI macOS** (`klef.app`) — app menu-bar (pas d'icône Dock, `LSUIElement=true`) avec popover ⌘⇧K. Recherche, copie auto-clear, drag-drop d'un `.env` pour bulk import + réécriture en `klef:` refs. Le binaire CLI est bundlé dans le `.app` pour install unifiée. Closes [#18](https://github.com/slewinus/klef/issues/18).
-- **`klef keychain configure`** (macOS) — désactive l'auto-lock du Keychain pour arrêter les prompts répétés. Idempotent, affiche la commande revert.
-- **Banner one-time** (macOS) qui pointe vers `keychain configure` quand le Keychain est verrouillé.
+What's new in v0.4 (cumulative):
+- **MCP server** (`klef mcp`) — `klef_list` (metadata) + `klef_run` (spawn process with `klef:` refs injected as env vars) for Claude Desktop / Claude Code. Per-rule TOML policy, fail-closed NDJSON audit log, best-effort byte-exact redaction, shell denylist. Closes [#24](https://github.com/slewinus/klef/issues/24). Doc: [`docs/mcp.md`](./docs/mcp.md).
+- **macOS GUI** (`klef.app`) — menu-bar app (no Dock icon, `LSUIElement=true`) with a ⌘⇧K popover. Search, auto-clear copy, drag-and-drop a `.env` for bulk import + rewrite as `klef:` refs. The CLI binary is bundled inside the `.app` for a unified install. Closes [#18](https://github.com/slewinus/klef/issues/18).
+- **`klef keychain configure`** (macOS) — disables Keychain auto-lock to stop the repeated prompts. Idempotent, prints the revert command.
+- **One-time banner** (macOS) pointing to `keychain configure` when the Keychain is locked.
 
-Sécurité (v0.4.1) :
-- Validation `env_var` (`^[A-Za-z_][A-Za-z0-9_]*$`) au write **et** au render — ferme la voie `klef export | eval` même pour les indexes legacy.
-- Helper `klef_core::fsx::{write_private, write_inheriting}` : 0600 sur `index.json`, `audit.log`, `.age.tmp`, `backup.tmp` ; perms du fichier source préservées sur les rewrites `.env`.
-- Import dotenv GUI : plaintext jamais renvoyé au webview, session-id côté Rust avec TTL 5 min, single-use à l'apply.
+Security (v0.4.1):
+- `env_var` validation (`^[A-Za-z_][A-Za-z0-9_]*$`) on write **and** on render — closes the `klef export | eval` path even for legacy indexes.
+- `klef_core::fsx::{write_private, write_inheriting}` helper: 0600 on `index.json`, `audit.log`, `.age.tmp`, `backup.tmp`; source-file perms preserved on `.env` rewrites.
+- GUI dotenv import: plaintext never returned to the webview, session-id kept on the Rust side with a 5-min TTL, single-use on apply.
 
-- **Plateformes supportées** : macOS (Keychain natif + GUI menu-bar) + Linux desktop (Secret Service) + Linux headless / CI / Docker via `--backend age:./vault.age` (closes [#12](https://github.com/slewinus/klef/issues/12)).
-- **Hors-scope** : Windows, synchro multi-machines.
-- **Roadmap** : voir [issues by milestone](https://github.com/slewinus/klef/milestones). v0.5+ tracking dans [#125](https://github.com/slewinus/klef/issues/125) (clipboard côté Rust, MCP `output_policy`, retention audit log).
+- **Supported platforms**: macOS (native Keychain + menu-bar GUI) + Linux desktop (Secret Service) + headless Linux / CI / Docker via `--backend age:./vault.age` (closes [#12](https://github.com/slewinus/klef/issues/12)).
+- **Out of scope**: Windows, multi-machine sync.
+- **Roadmap**: see [issues by milestone](https://github.com/slewinus/klef/milestones). v0.5+ tracked in [#125](https://github.com/slewinus/klef/issues/125) (Rust-side clipboard, MCP `output_policy`, audit log retention).
 
-## Licence
+## License
 
 [MIT](./LICENSE) — © 2026 Oscar R.
