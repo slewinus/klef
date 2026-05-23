@@ -9,21 +9,22 @@ use zeroize::Zeroizing;
 
 /// Run `klef restore`.
 ///
-/// Three-phase contract:
+/// Two-phase contract:
 /// - **Phase 0** — Decrypt, parse, validate schema, detect conflicts. Aborts
 ///   cleanly on any failure; no writes occur.
-/// - **Phase 1** — Write all values to the backend sequentially. On failure,
-///   stops immediately and reports progress. The index is NOT touched.
-/// - **Phase 2** — Rewrite the index atomically from the bundle entries.
+/// - **Phase 1** — `Store::restore` writes backend entries AND commits the
+///   index under a single inter-process lock (closes #72). Concurrent klef
+///   processes block on the lock rather than interleaving.
 ///
 /// Guarantee: klef's view of the vault is atomic. Either restore fully
-/// succeeds or klef stays on the previous state. The keychain itself may have
-/// orphaned entries on partial Phase 1 failure.
+/// succeeds or klef stays on the previous state. The keychain itself may
+/// retain entries written before a mid-restore failure (no rollback there).
 ///
 /// # Errors
 ///
-/// Returns an error if decryption fails, the bundle is malformed, any conflict
-/// is detected (without `--force`), or any backend/index write fails.
+/// Returns an error if decryption fails, the bundle is malformed, any
+/// conflict is detected (without `--force`), or any backend/index write
+/// fails while the lock is held.
 pub fn run(store: &Store, input: &Path, force: bool) -> Result<(), KlefError> {
     // Phase 0: Preflight — no writes.
     let bundle = decrypt_and_parse(input)?;
@@ -37,20 +38,9 @@ pub fn run(store: &Store, input: &Path, force: bool) -> Result<(), KlefError> {
         )));
     }
 
-    // Phase 1: Backend writes — sequential, fail-fast, no index writes.
+    // Phase 1: atomic restore under a single lock (closes #72).
     let total = bundle.entries.len();
-    for (idx, entry) in bundle.entries.iter().enumerate() {
-        if let Err(e) = store.restore_phase_1(entry) {
-            eprintln!(
-                "restore failed at entry index {idx}: {e}\n\
-                 restored {idx} of {total} entries to backend before failing"
-            );
-            return Err(e);
-        }
-    }
-
-    // Phase 2: Index commit — atomic.
-    store.restore_phase_2(&bundle.entries)?;
+    store.restore(&bundle.entries)?;
 
     println!("✓ restore complete: {total} entries written");
     Ok(())

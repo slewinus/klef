@@ -6,6 +6,7 @@ pub mod index;
 pub mod keychain;
 pub(crate) mod lock;
 mod ops;
+mod restore;
 
 pub use age_backend::AgeBackend;
 pub use backend::{Backend, MemoryBackend};
