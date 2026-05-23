@@ -1,4 +1,5 @@
 use crate::cli::ListFormat;
+use crate::outln;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 
@@ -38,7 +39,7 @@ pub fn run(
 
 fn print_table(entries: &[(String, klef_core::store::KeyMeta)], verbose: bool) {
     if entries.is_empty() {
-        println!("(no keys stored)");
+        outln!("(no keys stored)");
         return;
     }
     let name_w = entries
@@ -68,9 +69,12 @@ fn print_table(entries: &[(String, klef_core::store::KeyMeta)], verbose: bool) {
             .max()
             .unwrap_or(4)
             .max(4);
-        println!(
+        outln!(
             "{:<name_w$}  {:<var_w$}  {:<added_w$}  {:<tags_w$}  NOTE",
-            "NAME", "ENV_VAR", "ADDED", "TAGS"
+            "NAME",
+            "ENV_VAR",
+            "ADDED",
+            "TAGS"
         );
         for (name, meta) in entries {
             let note = meta.note.as_deref().unwrap_or("-");
@@ -80,16 +84,16 @@ fn print_table(entries: &[(String, klef_core::store::KeyMeta)], verbose: bool) {
             } else {
                 meta.tags.join(", ")
             };
-            println!(
+            outln!(
                 "{name:<name_w$}  {:<var_w$}  {added:<added_w$}  {tags:<tags_w$}  {note}",
                 meta.env_var
             );
         }
     } else {
-        println!("{:<name_w$}  {:<var_w$}  NOTE", "NAME", "ENV_VAR");
+        outln!("{:<name_w$}  {:<var_w$}  NOTE", "NAME", "ENV_VAR");
         for (name, meta) in entries {
             let note = meta.note.as_deref().unwrap_or("-");
-            println!("{name:<name_w$}  {:<var_w$}  {note}", meta.env_var);
+            outln!("{name:<name_w$}  {:<var_w$}  {note}", meta.env_var);
         }
     }
 }
@@ -108,7 +112,7 @@ fn print_json(entries: &[(String, klef_core::store::KeyMeta)]) -> Result<(), Kle
         path: std::path::PathBuf::new(),
         reason: e.to_string(),
     })?;
-    println!("{s}");
+    outln!("{s}");
     Ok(())
 }
 

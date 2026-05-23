@@ -1,3 +1,4 @@
+use crate::{out, outln};
 use klef_core::envfile::{self, Value};
 use klef_core::error::KlefError;
 use klef_core::store::Store;
@@ -85,7 +86,7 @@ fn klef_name_width(line: &PlanLine) -> usize {
 fn print_plan(plan: &[PlanLine]) {
     let env_w = plan.iter().map(env_var_width).max().unwrap_or(7).max(7);
     let name_w = plan.iter().map(klef_name_width).max().unwrap_or(9).max(9);
-    println!("{:<env_w$}  {:<name_w$}  VALUE", "ENV VAR", "KLEF NAME");
+    outln!("{:<env_w$}  {:<name_w$}  VALUE", "ENV VAR", "KLEF NAME");
     for line in plan {
         match line {
             PlanLine::Import {
@@ -93,10 +94,10 @@ fn print_plan(plan: &[PlanLine]) {
                 klef_name,
                 value,
             } => {
-                println!("{env_var:<env_w$}  {klef_name:<name_w$}  {}", redact(value));
+                outln!("{env_var:<env_w$}  {klef_name:<name_w$}  {}", redact(value));
             }
             PlanLine::SkipReference { env_var, target } => {
-                println!("{env_var:<env_w$}  skip — already klef:{target}");
+                outln!("{env_var:<env_w$}  skip — already klef:{target}");
             }
         }
     }
@@ -125,12 +126,12 @@ pub fn run(
         .filter(|l| matches!(l, PlanLine::Import { .. }))
         .count();
     if to_import == 0 {
-        println!("nothing to import.");
+        outln!("nothing to import.");
         return Ok(());
     }
 
     if !yes && std::io::stdin().is_terminal() {
-        print!("Import {to_import} key(s)? [y/N] ");
+        out!("Import {to_import} key(s)? [y/N] ");
         std::io::stdout().flush().map_err(KlefError::Io)?;
         let mut line = String::new();
         std::io::stdin()
@@ -138,7 +139,7 @@ pub fn run(
             .read_line(&mut line)
             .map_err(KlefError::Io)?;
         if !matches!(line.trim().to_lowercase().as_str(), "y" | "yes") {
-            println!("aborted");
+            outln!("aborted");
             return Ok(());
         }
     }
@@ -155,7 +156,7 @@ pub fn run(
         {
             match store.add(klef_name, value, Some(env_var.clone()), None, vec![], false) {
                 Ok(()) => {
-                    println!("✓ {env_var} → klef:{klef_name}");
+                    outln!("✓ {env_var} → klef:{klef_name}");
                     imported.push((env_var.clone(), klef_name.clone()));
                 }
                 Err(KlefError::KeyAlreadyExists(_)) => {
@@ -166,10 +167,10 @@ pub fn run(
         }
     }
 
-    println!();
-    println!("Imported {} key(s).", imported.len());
+    outln!();
+    outln!("Imported {} key(s).", imported.len());
     if !skipped.is_empty() {
-        println!(
+        outln!(
             "Skipped {} (already existed): {}",
             skipped.len(),
             skipped.join(", ")
@@ -178,7 +179,7 @@ pub fn run(
 
     if rewrite && !imported.is_empty() {
         let count = rewrite_env_file(file, &imported)?;
-        println!(
+        outln!(
             "Rewrote {} ({count} reference(s) replaced).",
             file.display()
         );

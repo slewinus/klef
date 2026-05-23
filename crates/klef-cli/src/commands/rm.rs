@@ -1,3 +1,4 @@
+use crate::{out, outln};
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 use std::io::{BufRead, IsTerminal, Write};
@@ -11,16 +12,16 @@ use std::io::{BufRead, IsTerminal, Write};
 /// Returns `KlefError` if the removal fails.
 pub fn run(store: &Store, name: &str, yes: bool) -> Result<(), KlefError> {
     if !yes && std::io::stdin().is_terminal() {
-        print!("Delete '{name}'? [y/N] ");
+        out!("Delete '{name}'? [y/N] ");
         std::io::stdout().flush().ok();
         let mut line = String::new();
         std::io::stdin().lock().read_line(&mut line).ok();
         if !matches!(line.trim().to_lowercase().as_str(), "y" | "yes") {
-            println!("aborted");
+            outln!("aborted");
             return Ok(());
         }
     }
     store.remove(name)?;
-    println!("✓ '{name}' removed");
+    outln!("✓ '{name}' removed");
     Ok(())
 }

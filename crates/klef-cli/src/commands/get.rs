@@ -1,3 +1,4 @@
+use crate::outln;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 use std::io::{IsTerminal, Write};
@@ -26,14 +27,14 @@ pub fn run_get(store: &Store, name: &str) -> Result<(), KlefError> {
 pub fn run_show(store: &Store, name: &str) -> Result<(), KlefError> {
     let value = store.get_value(name)?;
     let meta = store.meta(name)?;
-    println!("name:    {name}");
-    println!("env var: {}", meta.env_var);
+    outln!("name:    {name}");
+    outln!("env var: {}", meta.env_var);
     if let Some(note) = &meta.note {
-        println!("note:    {note}");
+        outln!("note:    {note}");
     }
     if !meta.tags.is_empty() {
-        println!("tags:    {}", meta.tags.join(", "));
+        outln!("tags:    {}", meta.tags.join(", "));
     }
-    println!("value:   {value}");
+    outln!("value:   {value}");
     Ok(())
 }

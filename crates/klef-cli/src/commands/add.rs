@@ -1,3 +1,4 @@
+use crate::outln;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 use std::io::{IsTerminal, Read};
@@ -20,7 +21,7 @@ pub fn run(
 ) -> Result<(), KlefError> {
     let value = read_value(name, value_from_file)?;
     store.add(name, value.trim_end(), env_var, note, tags, force)?;
-    println!("✓ '{name}' saved");
+    outln!("✓ '{name}' saved");
     Ok(())
 }
 

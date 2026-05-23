@@ -1,3 +1,4 @@
+use crate::outln;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 
@@ -9,6 +10,6 @@ use klef_core::store::Store;
 /// or if the backend or index fails.
 pub fn run(store: &Store, old: &str, new: &str) -> Result<(), KlefError> {
     store.rename(old, new)?;
-    println!("✓ '{old}' renamed to '{new}'");
+    outln!("✓ '{old}' renamed to '{new}'");
     Ok(())
 }

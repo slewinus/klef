@@ -1,6 +1,7 @@
 mod plan;
 
 use crate::cli::ConflictMode;
+use crate::{out, outln};
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 use plan::{DEFAULT_INCLUDE, build_plan, print_plan, walk};
@@ -84,7 +85,7 @@ pub fn run(
     if !yes && std::io::stdin().is_terminal() {
         let n_keys = discovered.picks.len();
         let n_files = discovered.files.len();
-        print!("Import {n_keys} key(s) from {n_files} file(s)? [y/N] ");
+        out!("Import {n_keys} key(s) from {n_files} file(s)? [y/N] ");
         std::io::stdout().flush().map_err(KlefError::Io)?;
         let mut line = String::new();
         std::io::stdin()
@@ -92,7 +93,7 @@ pub fn run(
             .read_line(&mut line)
             .map_err(KlefError::Io)?;
         if !matches!(line.trim().to_lowercase().as_str(), "y" | "yes") {
-            println!("aborted");
+            outln!("aborted");
             return Ok(());
         }
     }
@@ -110,7 +111,7 @@ pub fn run(
             false,
         ) {
             Ok(()) => {
-                println!(
+                outln!(
                     "✓ {} → klef:{}  (from {})",
                     entry.env_var,
                     entry.klef_name,
@@ -125,10 +126,10 @@ pub fn run(
         }
     }
 
-    println!();
-    println!("Imported {imported} key(s).");
+    outln!();
+    outln!("Imported {imported} key(s).");
     if !skipped.is_empty() {
-        println!(
+        outln!(
             "Skipped {} (already existed): {}",
             skipped.len(),
             skipped.join(", ")

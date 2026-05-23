@@ -1,3 +1,4 @@
+use crate::outln;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 
@@ -8,13 +9,13 @@ use klef_core::store::Store;
 pub fn run(store: &Store) -> Result<(), KlefError> {
     let counts = store.tags_with_counts()?;
     if counts.is_empty() {
-        println!("(no tags in use)");
+        outln!("(no tags in use)");
         return Ok(());
     }
     let name_w = counts.keys().map(String::len).max().unwrap_or(3).max(3);
-    println!("{:<name_w$}  KEYS", "TAG");
+    outln!("{:<name_w$}  KEYS", "TAG");
     for (tag, count) in counts {
-        println!("{tag:<name_w$}  {count}");
+        outln!("{tag:<name_w$}  {count}");
     }
     Ok(())
 }

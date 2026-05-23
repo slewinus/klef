@@ -1,3 +1,4 @@
+use crate::outln;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 
@@ -8,6 +9,6 @@ use klef_core::store::Store;
 /// Returns an error if the key is not found or the index can't be saved.
 pub fn run(store: &Store, name: &str, note: &str) -> Result<(), KlefError> {
     store.update_meta(name, None, Some(Some(note.to_string())))?;
-    println!("✓ '{name}' note updated");
+    outln!("✓ '{name}' note updated");
     Ok(())
 }

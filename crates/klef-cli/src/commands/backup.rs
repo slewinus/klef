@@ -5,6 +5,7 @@
 //! same on-disk format. This module owns only the age encryption, file I/O,
 //! and TTY prompts.
 
+use crate::outln;
 use klef_core::backup::Bundle;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
@@ -49,7 +50,7 @@ pub fn run(store: &Store, output: &Path, recipients: &[String]) -> Result<(), Kl
     klef_core::fsx::write_private(&tmp, &ciphertext).map_err(KlefError::IndexWrite)?;
     std::fs::rename(&tmp, output).map_err(KlefError::IndexWrite)?;
 
-    println!(
+    outln!(
         "✓ backup written: {entry_count} entries → {}",
         output.display()
     );
