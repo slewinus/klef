@@ -77,7 +77,7 @@ pub fn run(
     store.add(
         name,
         value.trim_end(),
-        env_var,
+        env_var.or_else(|| Some(meta.env_var.clone())),
         note_to_use,
         final_tags,
         true,
