@@ -1,5 +1,6 @@
 //! `klef restore` — restore a vault from an age-encrypted backup.
 
+use crate::outln;
 use klef_core::backup::Bundle;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
@@ -52,7 +53,7 @@ pub fn run(store: &Store, input: &Path, force: bool) -> Result<(), KlefError> {
     // Phase 2: Index commit — atomic.
     store.restore_phase_2(&bundle.entries)?;
 
-    println!("✓ restore complete: {total} entries written");
+    outln!("✓ restore complete: {total} entries written");
     Ok(())
 }
 

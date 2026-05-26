@@ -1,4 +1,5 @@
 use crate::cli::ConflictMode;
+use crate::outln;
 use klef_core::envfile::{self, Value};
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
@@ -153,9 +154,9 @@ pub(super) fn redact(value: &str) -> String {
 pub(super) fn print_plan(plan: &DiscoverPlan) {
     if plan.picks.is_empty() {
         if plan.files.is_empty() {
-            println!("(no .env files found in scan root)");
+            outln!("(no .env files found in scan root)");
         } else {
-            println!(
+            outln!(
                 "(no literal secrets found across {} file(s))",
                 plan.files.len()
             );
@@ -187,24 +188,24 @@ pub(super) fn print_plan(plan: &DiscoverPlan) {
         .max(9);
 
     for (path, entries) in &by_file {
-        println!("{}", path.display());
+        outln!("{}", path.display());
         for e in entries {
-            println!(
+            outln!(
                 "  {:<env_w$}  →  {:<name_w$}  {}",
                 e.env_var,
                 e.klef_name,
                 redact(&e.value)
             );
         }
-        println!();
+        outln!();
     }
 
     // Files where every entry lost the conflict.
     let pick_files: HashSet<&Path> = plan.picks.iter().map(|e| e.source.as_path()).collect();
     for f in &plan.files {
         if !pick_files.contains(f.as_path()) {
-            println!("{}: (all keys taken from earlier files)", f.display());
-            println!();
+            outln!("{}: (all keys taken from earlier files)", f.display());
+            outln!();
         }
     }
 
@@ -215,7 +216,7 @@ pub(super) fn print_plan(plan: &DiscoverPlan) {
     if plan.skipped_by_pattern > 0 {
         let _ = write!(suffix, " {} skipped by pattern.", plan.skipped_by_pattern);
     }
-    println!(
+    outln!(
         "{} unique key(s) across {} file(s).{}",
         plan.picks.len(),
         plan.files.len(),

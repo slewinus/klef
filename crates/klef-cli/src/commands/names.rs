@@ -1,3 +1,4 @@
+use crate::outln;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 
@@ -7,7 +8,7 @@ use klef_core::store::Store;
 /// Returns an error if the index can't be loaded.
 pub fn run(store: &Store) -> Result<(), KlefError> {
     for (name, _meta) in store.list()? {
-        println!("{name}");
+        outln!("{name}");
     }
     Ok(())
 }

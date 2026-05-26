@@ -1,4 +1,5 @@
 use crate::cli::Cli;
+use crate::out;
 use clap::CommandFactory;
 use clap_complete::Shell;
 use klef_core::error::KlefError;
@@ -42,7 +43,7 @@ pub fn run(shell: Shell) -> Result<(), KlefError> {
         Shell::Fish => inject_fish_dynamic_names(&raw),
         _ => raw,
     };
-    print!("{patched}");
+    out!("{patched}");
     Ok(())
 }
 

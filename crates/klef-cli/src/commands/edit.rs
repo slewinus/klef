@@ -1,3 +1,4 @@
+use crate::{out, outln};
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 use std::io::{IsTerminal, Read, Write};
@@ -35,7 +36,7 @@ pub fn run(
     if want_tags_change && !want_other_meta && value_from_file.is_none() {
         let final_tags = if clear_tags { vec![] } else { tags };
         store.set_tags(name, final_tags)?;
-        println!("✓ '{name}' tags updated");
+        outln!("✓ '{name}' tags updated");
         return Ok(());
     }
 
@@ -49,7 +50,7 @@ pub fn run(
         }
         let note_update = note.map(Some);
         store.update_meta(name, env_var, note_update)?;
-        println!("✓ '{name}' metadata updated");
+        outln!("✓ '{name}' metadata updated");
         return Ok(());
     }
 
@@ -82,7 +83,7 @@ pub fn run(
         final_tags,
         true,
     )?;
-    println!("✓ '{name}' value updated");
+    outln!("✓ '{name}' value updated");
     Ok(())
 }
 
@@ -105,7 +106,7 @@ fn run_note_edit(store: &Store, name: &str, current: Option<&str>) -> Result<(),
         Some(trimmed.to_string())
     };
     store.update_meta(name, None, Some(new_note))?;
-    println!("✓ '{name}' note updated");
+    outln!("✓ '{name}' note updated");
     Ok(())
 }
 
@@ -151,9 +152,9 @@ fn edit_via_external(editor: &str, current: &str) -> Result<String, KlefError> {
 
 fn prompt_note_stdin(name: &str, current: Option<&str>) -> Result<String, KlefError> {
     if let Some(c) = current {
-        println!("Current note: {c}");
+        outln!("Current note: {c}");
     }
-    print!("New note for '{name}' (empty to clear): ");
+    out!("New note for '{name}' (empty to clear): ");
     std::io::stdout().flush().map_err(KlefError::Io)?;
     let mut buf = String::new();
     std::io::stdin()

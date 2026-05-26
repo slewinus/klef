@@ -1,4 +1,5 @@
 use crate::cli::ExportFormat;
+use crate::outln;
 use klef_core::error::KlefError;
 use klef_core::store::{Store, validate_env_var};
 
@@ -18,7 +19,7 @@ pub fn run(store: &Store, names: &[String], format: ExportFormat) -> Result<(), 
         let meta = store.meta(name)?;
         validate_env_var(&meta.env_var)?;
         let line = render_line(&meta.env_var, &value, format);
-        println!("{line}");
+        outln!("{line}");
     }
     Ok(())
 }

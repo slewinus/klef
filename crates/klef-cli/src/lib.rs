@@ -5,6 +5,7 @@
 
 pub mod cli;
 pub mod commands;
+pub mod output;
 
 #[cfg(target_os = "macos")]
 mod macos_keychain_banner;

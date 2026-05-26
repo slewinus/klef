@@ -1,4 +1,5 @@
 use crate::cli::StatusFormat;
+use crate::outln;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
 
@@ -55,15 +56,15 @@ fn print_text(
     index_path: &str,
     backend: &str,
 ) {
-    println!("klef         {KLEF_VERSION}");
-    println!("backend      {backend}");
-    println!("index        {index_path}");
-    println!("keys         {key_count} in index");
+    outln!("klef         {KLEF_VERSION}");
+    outln!("backend      {backend}");
+    outln!("index        {index_path}");
+    outln!("keys         {key_count} in index");
 
     if index_orphans.is_empty() {
-        println!("desync (i→b) none");
+        outln!("desync (i→b) none");
     } else {
-        println!(
+        outln!(
             "desync (i→b) {} orphan(s) in index: {}",
             index_orphans.len(),
             index_orphans.join(", ")
@@ -71,9 +72,9 @@ fn print_text(
     }
 
     match backend_orphans {
-        None => println!("desync (b→i) unavailable (backend cannot enumerate)"),
-        Some([]) => println!("desync (b→i) none"),
-        Some(o) => println!(
+        None => outln!("desync (b→i) unavailable (backend cannot enumerate)"),
+        Some([]) => outln!("desync (b→i) none"),
+        Some(o) => outln!(
             "desync (b→i) {} orphan(s) in backend: {}",
             o.len(),
             o.join(", ")
@@ -102,6 +103,6 @@ fn print_json(
         path: std::path::PathBuf::new(),
         reason: e.to_string(),
     })?;
-    println!("{s}");
+    outln!("{s}");
     Ok(())
 }
