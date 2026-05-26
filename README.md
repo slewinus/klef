@@ -182,6 +182,8 @@ Claude Code, Cursor and ChatGPT agents can ingest these files and know how to dr
 
 ## Status
 
+✅ **v0.4.2** tagged (2026-05-26) — bug-fix patch on v0.4.1. Three CLI/core fixes from the backlog audit: `klef edit <name>` no longer clobbers custom `env_var` ([#71](https://github.com/slewinus/klef/issues/71)), piped commands (`klef list | head`, etc.) exit cleanly on SIGPIPE instead of panicking ([#73](https://github.com/slewinus/klef/issues/73)), and `Store::restore` now holds the exclusive lock across both phases to prevent races with concurrent writes ([#72](https://github.com/slewinus/klef/issues/72)). README translated to English ([#126](https://github.com/slewinus/klef/pull/126)).
+
 ✅ **v0.4.1** tagged (2026-05-11) — security patch on v0.4.0. Five audit findings fixed (shell-safe `env_var` validation, 0600 perms on metadata, O_EXCL tempfile for `--note-edit`, GUI dotenv import reworked to keep plaintext on the Rust side, MCP redaction documented as best-effort).
 
 What's new in v0.4 (cumulative):
