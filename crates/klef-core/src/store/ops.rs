@@ -26,7 +26,7 @@ impl Store {
     }
 
     /// Inter-process lock held across load → mutate → save (closes #61).
-    fn lock(&self) -> Result<FileLock, KlefError> {
+    pub(super) fn lock(&self) -> Result<FileLock, KlefError> {
         FileLock::acquire(&self.meta.lock_path())
     }
 
@@ -232,17 +232,17 @@ impl Store {
         Ok(())
     }
 
-    /// Restore Phase 1: backend write only (no index touch).
-    /// # Errors
-    /// Backend write failure.
+    /// Deprecated: use `Store::restore` (closes #72).
+    #[deprecated(since = "0.3.1", note = "use `Store::restore` (closes #72)")]
+    #[allow(clippy::missing_errors_doc)]
     pub fn restore_phase_1(&self, entry: &BundleEntry) -> Result<(), KlefError> {
         let _lock = self.lock()?;
         self.backend.set(&entry.name, &entry.value)
     }
 
-    /// Restore Phase 2: rewrite index from bundle entries.
-    /// # Errors
-    /// `InvalidKeyName`, `InvalidEnvVar`, or an index save failure.
+    /// Deprecated: use `Store::restore` (closes #72).
+    #[deprecated(since = "0.3.1", note = "use `Store::restore` (closes #72)")]
+    #[allow(clippy::missing_errors_doc)]
     pub fn restore_phase_2(&self, entries: &[BundleEntry]) -> Result<(), KlefError> {
         // Reject malformed names/env-vars before index write (#-injection).
         for entry in entries {
