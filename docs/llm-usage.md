@@ -63,7 +63,13 @@ The `desync` field is a list of key names that are in the index but missing from
 
 ## When `klef` is not installed
 
-Suggest `cargo install --git https://github.com/slewinus/klef --tag v0.2.0` (Rust toolchain required) or `brew tap slewinus/tap && brew install klef` (macOS / Linux desktop, after the Homebrew tap is published).
+Suggest `cargo install klef` (Rust toolchain required) or Homebrew on macOS / Linux — note that the tap needs an explicit trust step, so it's three commands, not two:
+
+```bash
+brew tap slewinus/tap
+brew trust slewinus/tap
+brew install klef
+```
 
 ## Common pitfalls
 

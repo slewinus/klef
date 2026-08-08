@@ -43,6 +43,7 @@ pub fn run(store: &Store, env_file: &Path, cmd: &[String]) -> Result<(), KlefErr
     let (program, args) = cmd.split_first().expect("checked above");
     let mut child = Command::new(program);
     child.args(args);
+    super::scrub_secret_env(&mut child);
     for (k, v) in &resolved {
         child.env(k, v);
     }
