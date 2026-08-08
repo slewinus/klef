@@ -22,6 +22,7 @@ use std::sync::{Arc, Mutex};
 use time::OffsetDateTime;
 use zeroize::Zeroizing;
 
+use super::age_cache::{Stamp, hit, stamp};
 use super::age_crypto::{age_decrypt, age_encrypt};
 
 // ---------------------------------------------------------------------------
@@ -34,7 +35,7 @@ use super::age_crypto::{age_decrypt, age_encrypt};
 /// so that legacy v0.4 vaults (which had only `{"secrets":{...}}`) load cleanly.
 /// The missing `index` field is filled with a synthesized default during
 /// [`AgeBackend::load_vault`].
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AgeVault {
     #[serde(default = "vault_version")]
@@ -88,6 +89,9 @@ struct AgeBackendInner {
 #[derive(Default)]
 struct State {
     passphrase: Option<SecretString>,
+    /// Last decrypted vault + the file stamp it came from; see `super::age_cache`.
+    /// Not a new exposure — `passphrase` is already held for the process lifetime.
+    cache: Option<(Stamp, AgeVault)>,
 }
 
 impl AgeBackend {
@@ -149,6 +153,13 @@ impl AgeBackend {
         if !self.inner.path.exists() {
             return Ok(AgeVault::default());
         }
+        let current = stamp(&self.inner.path);
+        // Own statement: the guard must drop here, not at the end of an `if let`.
+        let cached = hit(self.inner.state.lock().unwrap().cache.as_ref(), current);
+        if let Some(vault) = cached {
+            return Ok(vault);
+        }
+
         let ciphertext = std::fs::read(&self.inner.path).map_err(KlefError::Io)?;
         // File exists → no confirmation needed; we're reading an existing vault.
         let pass = self.passphrase(false)?;
@@ -170,7 +181,7 @@ impl AgeBackend {
                 vault.index.keys.insert(
                     name.clone(),
                     KeyMeta {
-                        env_var: default_env_var(&name),
+                        env_var: super::default_env_var(&name),
                         note: None,
                         tags: vec![],
                         added_at: now,
@@ -181,6 +192,8 @@ impl AgeBackend {
             }
         }
 
+        // Cache the post-backfill vault so every reader sees the same view.
+        self.inner.state.lock().unwrap().cache = current.map(|c| (c, vault.clone()));
         Ok(vault)
     }
 
@@ -205,6 +218,10 @@ impl AgeBackend {
         // 0600 on ciphertext — narrower than umask even though encrypted.
         crate::fsx::write_private(&tmp, &ciphertext).map_err(KlefError::IndexWrite)?;
         std::fs::rename(&tmp, &self.inner.path).map_err(KlefError::IndexWrite)?;
+
+        // Adopt what we just wrote; a failed stamp simply drops the cache.
+        self.inner.state.lock().unwrap().cache =
+            stamp(&self.inner.path).map(|s| (s, vault.clone()));
         Ok(())
     }
 }
@@ -267,24 +284,6 @@ impl MetaStore for AgeBackend {
     fn lock_path(&self) -> PathBuf {
         self.inner.path.clone()
     }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers (mirror of store::mod private fn)
-// ---------------------------------------------------------------------------
-
-pub(crate) fn default_env_var(name: &str) -> String {
-    let upper: String = name
-        .chars()
-        .map(|c| {
-            if c == '-' {
-                '_'
-            } else {
-                c.to_ascii_uppercase()
-            }
-        })
-        .collect();
-    format!("{upper}_API_KEY")
 }
 
 // ---------------------------------------------------------------------------

@@ -145,6 +145,75 @@ fn vault_metadata_not_in_ciphertext() {
     );
 }
 
+// Vault cache: one scrypt derivation per file version instead of one per call.
+
+#[test]
+fn second_read_of_an_unchanged_vault_hits_the_cache() {
+    let d = tempdir().unwrap();
+    let p = d.path().join("v.age");
+    let b = AgeBackend::new(p);
+    set_passphrase(&b, "right");
+    b.set("k", "v").unwrap();
+
+    // Swap in a passphrase that cannot decrypt the file. `passphrase()` reads
+    // the cached field first, so this is deterministic: the read below can only
+    // succeed by hitting the vault cache and skipping decryption entirely.
+    set_passphrase(&b, "wrong");
+    assert_eq!(b.get("k").unwrap(), "v");
+}
+
+#[test]
+fn write_by_another_instance_invalidates_the_cache() {
+    let d = tempdir().unwrap();
+    let p = d.path().join("v.age");
+
+    let b1 = AgeBackend::new(p.clone());
+    set_passphrase(&b1, "x");
+    b1.set("k", "short").unwrap();
+    assert_eq!(b1.get("k").unwrap(), "short", "warms b1's cache");
+
+    // A second instance stands in for a concurrent klef process. The new value
+    // is deliberately a different length so the file's byte length changes —
+    // the stamp then differs regardless of mtime granularity.
+    let b2 = AgeBackend::new(p);
+    set_passphrase(&b2, "x");
+    b2.set("k", "a-much-longer-replacement-value").unwrap();
+
+    assert_eq!(
+        b1.get("k").unwrap(),
+        "a-much-longer-replacement-value",
+        "b1 served a stale cached vault"
+    );
+}
+
+#[test]
+fn metadata_reads_see_writes_made_through_the_same_instance() {
+    // Store hands the same AgeBackend to both `Backend` and `MetaStore`, so a
+    // stale cache here would make `add` lose metadata. Guards that seam.
+    let d = tempdir().unwrap();
+    let p = d.path().join("v.age");
+    let b = AgeBackend::new(p);
+    set_passphrase(&b, "x");
+
+    b.set("k", "v").unwrap();
+    let mut data = b.load_index().unwrap();
+    data.keys.insert(
+        "k".into(),
+        KeyMeta {
+            env_var: "K_VAR".into(),
+            note: Some("n".into()),
+            tags: vec![],
+            added_at: time::macros::datetime!(2026-05-06 0:00 UTC),
+            updated_at: time::macros::datetime!(2026-05-06 0:00 UTC),
+            last_used_at: None,
+        },
+    );
+    b.save_index(&data).unwrap();
+
+    assert_eq!(b.load_index().unwrap().keys["k"].env_var, "K_VAR");
+    assert_eq!(b.get("k").unwrap(), "v", "save_index dropped the secret");
+}
+
 #[test]
 fn legacy_vault_without_index_field_loads_with_synthesized_metadata() {
     let d = tempdir().unwrap();
