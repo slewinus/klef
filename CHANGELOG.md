@@ -28,6 +28,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fix for #62 — the remaining cost is `Store::add` writing the vault twice (once
   for the secret, once for the index), which needs a batched `Store` API.
 
+## [0.4.2] - 2026-05-26
+
+Bug-fix patch on v0.4.1 — three fixes from the backlog audit, plus the README
+translated to English. No breaking changes; `klef-core`'s public surface is
+preserved (the 2-phase restore API still works, just deprecated). `klef` 0.4.1 →
+0.4.2, `klef-core` 0.3.0 → 0.3.1, `klef-gui` unchanged at 0.2.1.
+
+### Fixed
+
+- **`klef edit <name>` no longer clobbers a custom `env_var`** when called without `--as` (closes [#71](https://github.com/slewinus/klef/issues/71), PR [#127](https://github.com/slewinus/klef/pull/127)). Editing a key's value used to reset `env_var` to the derived default, which broke secret-rotation flows on any key added with `--as`.
+- **Piped commands exit cleanly on `BrokenPipe` instead of panicking** (closes [#73](https://github.com/slewinus/klef/issues/73), PR [#128](https://github.com/slewinus/klef/pull/128)). `klef list | head`, `klef tags | grep -q ...` and friends now behave like standard Unix tools. New `outln!`/`out!` macros centralize the handling — no `unsafe`, the workspace stays `unsafe_code = "forbid"`.
+- **`Store::restore` holds the exclusive lock across both phases** (closes [#72](https://github.com/slewinus/klef/issues/72), PR [#129](https://github.com/slewinus/klef/pull/129)). The two phases each took and released the flock independently, so a concurrent `add`/`rm`/`rename` could interleave between them and break the index/backend invariants. The legacy 2-phase API is `#[deprecated]` but still functional.
+
+### Changed
+
+- README fully translated to English (PR [#126](https://github.com/slewinus/klef/pull/126)).
+
 ## [0.4.1] - 2026-05-11
 
 Security patch — five findings from two consecutive audit passes plus a
