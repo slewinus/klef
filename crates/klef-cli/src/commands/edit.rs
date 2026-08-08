@@ -131,11 +131,10 @@ fn edit_via_external(editor: &str, current: &str) -> Result<String, KlefError> {
         .split_first()
         .ok_or_else(|| io_other("VISUAL/EDITOR is empty"))?;
 
-    let status = Command::new(program)
-        .args(args)
-        .arg(&path)
-        .status()
-        .map_err(KlefError::Io);
+    let mut editor_cmd = Command::new(program);
+    editor_cmd.args(args).arg(&path);
+    super::scrub_secret_env(&mut editor_cmd);
+    let status = editor_cmd.status().map_err(KlefError::Io);
 
     let result = status.and_then(|s| {
         if s.success() {
