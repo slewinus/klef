@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `klef run` and `klef edit --note-edit` no longer pass `KLEF_PASSPHRASE` to the
+  child process. The age vault's master passphrase was inherited by every
+  command klef spawned on the user's behalf — in CI, `klef run -- npm start`
+  handed the whole vault key to npm and to every postinstall script under it.
+  Both spawn sites now go through `commands::scrub_secret_env`. The MCP path was
+  never affected (`mcp::run_proc` builds the child env with `env_clear` plus an
+  explicit whitelist).
+
 ## [0.4.1] - 2026-05-11
 
 Security patch — five findings from two consecutive audit passes plus a
