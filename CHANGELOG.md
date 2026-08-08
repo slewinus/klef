@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   never affected (`mcp::run_proc` builds the child env with `env_clear` plus an
   explicit whitelist).
 
+### Performance
+
+- **The age backend caches the decrypted vault** for as long as the file on disk
+  is unchanged, instead of running a fresh scrypt derivation for every single
+  `Backend`/`MetaStore` call. One `klef add` used to decrypt the vault four times
+  and re-encrypt it twice; measured on an M-series laptop, `add` drops from 7.9s
+  to 4.0s and `get` from 2.9s to 1.3s. The cache is keyed on the vault file's
+  `(len, mtime)`, so a write by a concurrent klef process invalidates it. Partial
+  fix for #62 — the remaining cost is `Store::add` writing the vault twice (once
+  for the secret, once for the index), which needs a batched `Store` API.
+
 ## [0.4.1] - 2026-05-11
 
 Security patch — five findings from two consecutive audit passes plus a
