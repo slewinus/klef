@@ -11,7 +11,12 @@ git tag -a vX.Y.Z -m "klef vX.Y.Z"
 git push origin vX.Y.Z
 # 5. The release workflow (.github/workflows/release.yml) builds binaries
 #    for 4 platforms and attaches them to the GitHub Release automatically.
-# 6. Update Homebrew formula (see docs/release.md "Homebrew" section once #10 lands).
+# 6. VERIFY the workflow actually ran and the release has 8 assets:
+gh run list --workflow=release.yml --limit 1
+gh release view vX.Y.Z --json assets --jq '.assets | length'
+# 7. Publish to crates.io (manual, in dependency order):
+cargo publish -p klef-core && cargo publish -p klef
+# 8. Bump the Homebrew formula (see the "Homebrew" section below).
 ```
 
 ## Verifying without tagging
@@ -23,13 +28,48 @@ gh workflow run release.yml -f tag=v0.0.0-test
 gh run watch
 ```
 
-This builds artifacts but does NOT create a release. Artifacts download from the workflow run page.
+This builds artifacts but does NOT create a release (the `release` job is gated
+on `github.event_name == 'push'`). Artifacts download from the workflow run page.
+
+## After tagging: check that the workflow actually ran
+
+Pushing the tag is not proof the release built. v0.4.2 was tagged and its
+release page written by hand, but no workflow run ever fired, so the release
+sat with zero assets while `cargo install` and Homebrew silently kept serving
+0.4.1. Always confirm:
+
+```bash
+gh run list --workflow=release.yml --limit 1   # must show the new tag
+gh release view vX.Y.Z --json assets --jq '.assets | length'   # must be 8
+```
+
+If the release exists but has no assets, don't delete it — deleting throws away
+hand-written release notes. Build the artifacts with the dispatch trigger above
+and attach them to the existing release:
+
+```bash
+gh run download <run-id> -D /tmp/rel
+gh release upload vX.Y.Z /tmp/rel/*/*.tar.gz /tmp/rel/*/*.sha256
+```
+
+## crates.io
+
+`cargo publish` is NOT part of the release workflow — it's manual, and it's two
+publishes in dependency order:
+
+```bash
+cargo publish -p klef-core   # must land first; klef depends on the exact version
+cargo publish -p klef
+```
+
+Skipping this is invisible from the GitHub side: the release looks complete
+while `cargo install klef` keeps installing the previous version.
 
 ## Build matrix
 
 | Target | Runner | Notes |
 |---|---|---|
-| x86_64-apple-darwin | macos-13 (Intel) | Native build |
+| x86_64-apple-darwin | macos-latest (Apple Silicon) | Cross-compiled |
 | aarch64-apple-darwin | macos-latest (Apple Silicon) | Native build |
 | x86_64-unknown-linux-gnu | ubuntu-latest | Native; libdbus-1-dev installed |
 | aarch64-unknown-linux-gnu | ubuntu-24.04-arm | Native; libdbus-1-dev installed |
@@ -46,42 +86,42 @@ xattr -d com.apple.quarantine ~/.local/bin/klef
 
 A real codesigning + notarization pipeline is the next big distribution improvement and lives in a future issue.
 
-## Homebrew (one-time setup)
+## Homebrew
 
-The `slewinus/homebrew-tap` repo doesn't exist yet. To set it up the first time:
+The tap lives at [`slewinus/homebrew-tap`](https://github.com/slewinus/homebrew-tap)
+and carries two artifacts for the same `klef` token:
 
-1. Create a new public GitHub repo named `homebrew-tap` under your account (`slewinus/homebrew-tap`).
-2. From that repo's local clone, create the directory layout:
-   ```
-   homebrew-tap/
-   └── Formula/
-       └── klef.rb
-   ```
-3. Tag a release of klef (e.g. `v0.2.0`). The `release.yml` workflow builds the four tarballs and attaches them to the GitHub Release.
-4. From this klef repo, run:
+- `Formula/klef.rb` — the CLI, all four targets (macOS Intel + ARM, Linux x86_64 + ARM).
+  This is what the bare `brew install klef` resolves to.
+- `Casks/klef.rb` — the macOS menu bar `.app` with the CLI bundled inside it,
+  Apple Silicon only. Needs an explicit `brew install --cask klef`.
+
+Homebrew refuses to load formulae *and* casks from third-party taps until the
+user runs `brew trust slewinus/tap`. That is not something the tap can opt out
+of, so the install instructions in both READMEs have to spell it out.
+
+### Bumping the formula after a release
+
+1. Tag the new version and confirm the workflow published all 8 assets (above).
+2. Regenerate the formula against the published tarballs:
    ```bash
-   scripts/update-homebrew-formula.sh v0.2.0 /path/to/homebrew-tap/Formula/klef.rb
+   scripts/update-homebrew-formula.sh vX.Y.Z /path/to/homebrew-tap/Formula/klef.rb
    ```
-5. Commit and push the populated formula to the tap repo.
-6. End-users can now install:
+   The script downloads each tarball and computes its SHA-256, so it fails loudly
+   if an asset is missing.
+3. Sanity-check before pushing:
    ```bash
-   brew tap slewinus/tap
-   brew install klef
+   brew style /path/to/homebrew-tap/Formula/klef.rb
+   brew fetch --formula --force slewinus/tap/klef   # verifies url + sha256
    ```
+4. Commit and push to the tap.
 
-## Homebrew (subsequent releases)
+The cask is bumped separately and only when a `.dmg` exists for the version —
+`release.yml` does not build the GUI today, so the cask lags the formula. See
+[#123](https://github.com/slewinus/klef/issues/123).
 
-After step 1-2 are done once, releases just need:
-
-1. Tag the new version (`vX.Y.Z`).
-2. Wait for the release workflow to publish binaries.
-3. Run the update script:
-   ```bash
-   scripts/update-homebrew-formula.sh vX.Y.Z ~/code/homebrew-tap/Formula/klef.rb
-   ```
-4. Commit and push the bumped formula.
-
-A future enhancement (out of scope for v0.2) automates the formula bump via a workflow step that opens a PR on the tap repo on every release. See [#10](https://github.com/slewinus/klef/issues/10) for the tracking discussion.
+Automating the formula bump via a workflow step that opens a PR on the tap repo
+is tracked in [#10](https://github.com/slewinus/klef/issues/10).
 
 ## Headless / CI / Docker — age backend
 

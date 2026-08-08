@@ -34,11 +34,13 @@ A local CLI that:
 | Local-first | ✅ | ❌ (1P account) | ❌ (cloud) | ✅ |
 | Native Keychain storage | ✅ | via `op` | ❌ | ❌ |
 | References in `.env` | ✅ `klef:` | ✅ `op://` | ✅ `{{var}}` | ❌ literal |
-| No master password | ✅ (Touch ID) | ❌ | ❌ | ✅ |
+| No master password | ✅ (OS keychain) | ❌ | ❌ | ✅ |
 | Free | ✅ | $3/month | freemium | ✅ |
 | Multi-machine sync | ❌ (v0.4) | ✅ | ✅ | ❌ |
 
 klef targets the single-user, single-machine, local-first, free use case. The competitors are excellent — it's just a different niche. (Comparison verified on 2026-05-06.)
+
+klef has no master password of its own: your OS keychain holds the secrets, and it's already unlocked by your login session. Biometric confirmation per access (Touch ID) is **not** implemented — it's tracked in [#118](https://github.com/slewinus/klef/issues/118). On macOS, if you're seeing repeated password prompts, that's the login keychain re-locking: run `klef keychain configure` once (see [`docs/macos-keychain.md`](./docs/macos-keychain.md)).
 
 ## Demo
 
@@ -84,12 +86,23 @@ _Cast source: [`docs/klef-demo.cast`](./docs/klef-demo.cast) — re-uploadable i
 cargo install klef
 ```
 
-### Homebrew (macOS / Linux desktop)
+### Homebrew (macOS / Linux)
+
+Homebrew refuses to load anything from a third-party tap until you trust it, so
+`brew trust` is a required step, not an optional one:
 
 ```bash
 brew tap slewinus/tap
-brew install klef
+brew trust slewinus/tap
+
+brew install klef          # CLI — macOS (Intel + Apple Silicon) and Linux
+brew install --cask klef   # macOS menu bar GUI, with the CLI bundled inside the .app
 ```
+
+The cask is Apple Silicon only and isn't codesigned yet, so macOS quarantines it
+on first launch — clear it once with
+`xattr -dr com.apple.quarantine /Applications/klef.app`. Signing and notarization
+are tracked in [#123](https://github.com/slewinus/klef/issues/123).
 
 ### Pre-built binaries
 
