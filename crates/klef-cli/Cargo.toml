@@ -7,7 +7,7 @@ license.workspace = true
 repository.workspace = true
 readme.workspace = true
 keywords = ["cli", "secrets", "keychain", "api-keys", "vault"]
-categories = ["command-line-utilities"]
+categories = ["command-line-utilities", "development-tools", "config"]
 
 [dependencies]
 klef-core = { version = "0.3.2", path = "../klef-core" }
