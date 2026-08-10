@@ -13,6 +13,30 @@
 
 To populate a `.env`, the agent writes the *reference* `klef:<name>` directly. It never needs the value.
 
+## Setup — one command
+
+```bash
+klef mcp install
+```
+
+Registers klef with every supported agent CLI found on `PATH`:
+
+```
+klef binary: /opt/homebrew/bin/klef
+
+✓ Claude Code — klef registered
+✓ Codex — klef registered
+```
+
+It calls each client's own `claude mcp add` / `codex mcp add` rather than editing
+their config files — Claude Code stores servers in `~/.claude.json`, Codex in
+`~/.codex/config.toml`, both alongside plenty of unrelated settings that klef has
+no business rewriting. Re-running is safe: a client that already has klef is left
+alone.
+
+`--dry-run` prints the commands without running them. The path written into the
+config is the resolved binary, not a symlink, so a `brew` relink can't orphan it.
+
 ## Setup — Claude Desktop
 
 ```json

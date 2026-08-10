@@ -112,7 +112,7 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
         Command::Tags => commands::tags::run(&store),
         Command::Names => commands::names::run(&store),
         #[cfg(feature = "mcp")]
-        Command::Mcp { policy } => commands::mcp::run(store, policy),
+        Command::Mcp { policy, action } => commands::mcp::dispatch(store, policy, action.as_ref()),
         #[cfg(target_os = "macos")]
         Command::Keychain { action } => match action {
             cli::KeychainAction::Configure => commands::keychain::run(),

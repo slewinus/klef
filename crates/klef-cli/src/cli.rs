@@ -187,12 +187,29 @@ pub enum Command {
         /// Path to the policy file. Default: ~/.config/klef/mcp-policy.toml.
         #[arg(long, value_name = "PATH")]
         policy: Option<PathBuf>,
+        /// Optional action. With none, `klef mcp` runs the server on stdio —
+        /// that's what MCP clients invoke, so it must stay the default.
+        #[command(subcommand)]
+        action: Option<McpAction>,
     },
     /// macOS keychain helpers (avoid frequent password prompts).
     #[cfg(target_os = "macos")]
     Keychain {
         #[command(subcommand)]
         action: KeychainAction,
+    },
+}
+
+/// Actions under `klef mcp` other than running the server.
+#[cfg(feature = "mcp")]
+#[derive(clap::Subcommand)]
+pub enum McpAction {
+    /// Register klef as an MCP server with the agent CLIs found on PATH
+    /// (Claude Code, Codex), so they can use your keys without seeing values.
+    Install {
+        /// Print the commands that would run, change nothing.
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 

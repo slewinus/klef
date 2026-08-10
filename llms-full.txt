@@ -204,7 +204,7 @@ klef ships documentation designed for AI assistants:
 - **[`llms.txt`](./llms.txt)**: navigation index (following the [llmstxt.org](https://llmstxt.org/) convention)
 - **[`llms-full.txt`](./llms-full.txt)**: concatenated doc for single-prompt ingestion
 - **[`docs/llm-usage.md`](./docs/llm-usage.md)**: concrete patterns — decision table, exit codes, JSON outputs
-- **[`docs/mcp.md`](./docs/mcp.md)**: MCP server (`klef mcp`) — let Claude/Cursor use your keys without ever seeing the plaintext value.
+- **[`docs/mcp.md`](./docs/mcp.md)**: MCP server (`klef mcp`) — let Claude/Cursor use your keys without ever seeing the plaintext value. `klef mcp install` wires it into Claude Code and Codex in one command.
 
 Claude Code, Cursor and ChatGPT agents can ingest these files and know how to drive klef without hallucinating.
 
