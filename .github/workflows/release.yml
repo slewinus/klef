@@ -124,9 +124,106 @@ jobs:
             dist/*.tar.gz
             dist/*.sha256
 
+  gui:
+    name: macOS GUI (.dmg)
+    runs-on: macos-latest
+    # Exposed at job level so the two build steps below can branch on whether
+    # signing is configured. A step `if:` can read `env`, but not `secrets`.
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="${GITHUB_REF#refs/tags/}"
+          else
+            tag="${{ github.event.inputs.tag }}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: gui-aarch64-apple-darwin
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: crates/klef-gui/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: crates/klef-gui
+        run: npm ci
+
+      # The .app ships the CLI inside it (Resources/cli-bundle/klef) so one
+      # cask install gives both. `--features mcp` for the same reason the
+      # tarball build needs it: without it the bundled CLI has no `klef mcp`.
+      - name: Stage the klef CLI for bundling
+        run: |
+          cargo build --release --locked -p klef --features mcp
+          mkdir -p crates/klef-gui/cli-bundle
+          cp target/release/klef crates/klef-gui/cli-bundle/klef
+          ./crates/klef-gui/cli-bundle/klef mcp --help > /dev/null || {
+            echo "::error::CLI staged for the .app has no 'mcp' subcommand"
+            exit 1
+          }
+
+      # Two build steps rather than one with conditional env: a half-populated
+      # signing config fails deep inside the bundler at release time, which is
+      # the worst moment to debug it. Either every secret is present and we
+      # sign + notarize, or none is and we ship the same unsigned bundle as
+      # before. Tauri imports the .p12 itself when APPLE_CERTIFICATE is set.
+      - name: Build signed + notarized .dmg
+        if: env.APPLE_CERTIFICATE != ''
+        working-directory: crates/klef-gui
+        run: npx tauri build --target aarch64-apple-darwin
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Build unsigned .dmg
+        if: env.APPLE_CERTIFICATE == ''
+        working-directory: crates/klef-gui
+        run: |
+          echo "::warning::APPLE_CERTIFICATE not set — shipping an unsigned .dmg."
+          echo "::warning::macOS will quarantine it; the cask keeps its xattr caveat."
+          npx tauri build --target aarch64-apple-darwin
+
+      - name: Package .dmg
+        shell: bash
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          SRC="$(find target/aarch64-apple-darwin/release/bundle/dmg -name '*.dmg' | head -1)"
+          [ -n "$SRC" ] || { echo "::error::no .dmg produced"; exit 1; }
+          mkdir -p dist
+          OUT="klef-gui-${TAG}-aarch64-apple-darwin.dmg"
+          cp "$SRC" "dist/${OUT}"
+          ( cd dist && shasum -a 256 "$OUT" > "${OUT}.sha256" )
+          ls -la dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-dmg
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: [build, gui]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -137,7 +234,7 @@ jobs:
       - name: Flatten artifact tree
         run: |
           mkdir -p release-files
-          find artifacts -type f \( -name '*.tar.gz' -o -name '*.sha256' \) -exec mv {} release-files/ \;
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.dmg' -o -name '*.sha256' \) -exec mv {} release-files/ \;
           ls -la release-files/
 
       - name: Create or update GitHub Release

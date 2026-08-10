@@ -2623,7 +2623,7 @@ dependencies = [
 
 [[package]]
 name = "klef-gui"
-version = "0.2.1"
+version = "0.4.4"
 dependencies = [
  "klef-core",
  "serde",
