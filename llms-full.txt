@@ -189,6 +189,19 @@ cd ../..
 cargo run -p klef-gui # menu bar mode: icon top-right, click to open (no Dock icon — LSUIElement=true)
 ```
 
+### macOS: stop the password prompts while developing
+
+A `cargo build` binary is ad-hoc signed, so its code identity changes with its
+bytes and the keychain's "Always Allow" never sticks — you get prompted on every
+`klef get`. Sign your build with a stable certificate once:
+
+```bash
+scripts/sign-local.sh
+```
+
+See [`docs/macos-keychain.md`](./docs/macos-keychain.md) for the full explanation
+and for the other, unrelated cause (auto-lock timeout, fixed by `klef keychain configure`).
+
 The git hooks (`fmt`, `clippy`, `tests`, line-cap < 300 lines/file) are versioned under `.githooks/`. CI on macOS + Ubuntu via GitHub Actions (`.github/workflows/ci.yml`).
 
 ## Documentation
