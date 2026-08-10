@@ -147,6 +147,14 @@ decrypts → mutates → re-encrypts atomically (tmp + rename).
 
 **Passphrase loss = unrecoverable**. age has no backdoor. Document your passphrase policy.
 
-**Asymmetric mode** (`--recipient age1...`) is not yet supported on the read side
-in v0.4 — passphrase only. File a follow-up if you need YubiKey-resident keys
-for a CI scenario.
+**Asymmetric mode.** `klef backup <out.age> --recipient age1...` encrypts to a
+public key; restore it with the matching private key:
+
+```bash
+klef restore out.age --identity ~/.age/backup-key.txt
+```
+
+`--identity` is repeatable, and klef reads the file header to decide which mode
+applies — passing `--identity` for a passphrase backup (or omitting it for a
+recipient one) is refused with a message naming the fix rather than silently
+prompting for the wrong thing.

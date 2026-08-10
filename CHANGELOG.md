@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`klef backup --recipient` no longer produces a backup klef can't read** (closes [#59](https://github.com/slewinus/klef/issues/59)). `backup` accepted `--recipient`, printed a success line, and wrote a valid age file — but `restore` rejected every non-scrypt file, so the flag silently produced unrestorable backups and nothing surfaced that until the day you needed one. `klef restore` now takes `--identity <FILE>` (repeatable) and reads the file header to pick the mode: a recipient-encrypted backup without `--identity`, or `--identity` against a passphrase backup, is refused up front with the correct command instead of prompting for the wrong secret.
+
 ## [0.4.3] - 2026-08-10
 
 Security + performance patch on v0.4.2. No breaking changes; the public surface
