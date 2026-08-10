@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The release workflow builds the macOS GUI.** A new `gui` job produces `klef.app`, wraps it in a `.dmg` named to match the Homebrew cask's URL template, and attaches it to the release next to the CLI tarballs. Until now the `.dmg` was built and uploaded by hand, so the cask sat on v0.4.1 while the CLI moved on — cask users were running a `klef` from May, still carrying the `KLEF_PASSPHRASE` leak fixed in 0.4.3. The `release` job now needs both, so a broken GUI build stops the release instead of silently publishing half of it. Signing and notarization switch on when the Apple secrets are configured and are skipped with a warning otherwise; `docs/release.md` lists the six secrets. Part of [#123](https://github.com/slewinus/klef/issues/123).
+
+### Fixed
+
+- **`klef-gui` version drift.** The crate said `0.2.1` in `Cargo.toml` and `0.4.1` in `tauri.conf.json`, so the built app advertised a version the crate didn't have. Both now track the workspace release version (`0.4.4`) — the cask ships the CLI and GUI together, so they are one product from the user's side.
+
 ## [0.4.4] - 2026-08-10
 
 Ships the MCP server that the last four releases claimed to ship, and closes the

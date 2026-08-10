@@ -112,6 +112,55 @@ while `cargo install klef` keeps installing the previous version.
 
 Linux Secret Service support requires `libdbus-1-dev` at build time. End-users running the binary still need a Secret Service implementation (gnome-keyring, KWallet) at runtime; otherwise klef emits the platform hint introduced in #9.
 
+## macOS GUI — signing and notarization
+
+The `gui` job in `release.yml` builds `klef.app`, wraps it in a `.dmg` named to
+match the cask's URL template, and attaches it to the release alongside the four
+CLI tarballs. The `release` job needs both, so a broken GUI build stops the whole
+release rather than quietly publishing half of it — a cask silently stuck on an
+old version is the failure this job exists to prevent.
+
+Signing is **conditional on the secrets being present**. With none set, the job
+prints a warning and ships the same unsigned bundle as before; macOS quarantines
+it and the cask keeps its `xattr -dr` caveat. With all of them set, tauri signs
+and notarizes, and that caveat can be dropped from the cask.
+
+### The six secrets
+
+Requires a **paid** Apple Developer Program membership — a free account cannot
+issue a Developer ID Application certificate, which is the one that matters. An
+"Apple Development" certificate is not a substitute: it only validates on
+machines already provisioned for your team.
+
+| Secret | Where it comes from |
+|---|---|
+| `APPLE_CERTIFICATE` | Your *Developer ID Application* certificate exported from Keychain Access as `.p12`, then `base64 -i cert.p12 \| pbcopy` |
+| `APPLE_CERTIFICATE_PASSWORD` | The password you set on that `.p12` export |
+| `APPLE_SIGNING_IDENTITY` | Its full name, e.g. `Developer ID Application: Your Name (TEAMID)` — copy it from `security find-identity -v -p codesigning` |
+| `APPLE_ID` | The Apple ID email on the developer account |
+| `APPLE_APP_SPECIFIC_PASSWORD` | Generated at appleid.apple.com → Sign-In and Security → App-Specific Passwords. **Not** your Apple ID password |
+| `APPLE_TEAM_ID` | The 10-character team ID, visible in the signing identity's name |
+
+Creating the certificate, if you have the membership but not the cert: Xcode →
+Settings → Accounts → your account → Manage Certificates → `+` → *Developer ID
+Application*. Then export it from Keychain Access with a password.
+
+Verify afterwards that the shipped `.dmg` is really signed, since an unsigned one
+still builds successfully:
+
+```bash
+hdiutil attach -nobrowse -readonly klef-gui-vX.Y.Z-aarch64-apple-darwin.dmg
+codesign -dv /Volumes/klef/klef.app 2>&1 | grep -E 'Authority|Signature'
+spctl -a -vv /Volumes/klef/klef.app       # "accepted / Notarized Developer ID"
+hdiutil detach /Volumes/klef
+```
+
+### Architecture
+
+The `.dmg` is Apple Silicon only, matching the cask's `depends_on arch: :arm64`.
+Intel Mac users get the CLI through the formula. Building a universal binary is a
+follow-up, not a blocker.
+
 ## macOS gatekeeper
 
 Binaries are NOT codesigned or notarized in this release flow (tracked in #20). On first run, macOS may quarantine them. Workaround for users:
