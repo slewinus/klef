@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **The release workflow builds the macOS GUI.** A new `gui` job produces `klef.app`, wraps it in a `.dmg` named to match the Homebrew cask's URL template, and attaches it to the release next to the CLI tarballs. Until now the `.dmg` was built and uploaded by hand, so the cask sat on v0.4.1 while the CLI moved on — cask users were running a `klef` from May, still carrying the `KLEF_PASSPHRASE` leak fixed in 0.4.3. The `release` job now needs both, so a broken GUI build stops the release instead of silently publishing half of it. Signing and notarization switch on when the Apple secrets are configured and are skipped with a warning otherwise; `docs/release.md` lists the six secrets. Part of [#123](https://github.com/slewinus/klef/issues/123).
+- The CLI bundled inside `klef.app` is signed separately before tauri seals the bundle. Notarization rejects a bundle if *any* Mach-O inside it is unsigned, and tauri only signs the app and its own binaries — `Resources/cli-bundle/klef` is a plain copied file it never touches. Apple returned three errors against it: no Developer ID, no secure timestamp, no hardened runtime. The step asserts all three locally so a regression fails in seconds instead of after a round trip to Apple's notary service.
 
 ### Fixed
 

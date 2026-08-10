@@ -176,6 +176,48 @@ jobs:
             exit 1
           }
 
+      # Notarization rejects a bundle if ANY Mach-O inside it isn't properly
+      # signed. tauri signs the .app and its own binaries, but cli-bundle/klef
+      # is a plain copied file it doesn't touch, so Apple returned three errors
+      # against it: no Developer ID, no secure timestamp, no hardened runtime.
+      # It has to be signed here, before tauri seals the bundle around it —
+      # which means importing the certificate ourselves rather than waiting for
+      # tauri to do it during the build.
+      - name: Import the signing certificate
+        if: env.APPLE_CERTIFICATE != ''
+        env:
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/klef-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychain -d user -s "$KEYCHAIN" login.keychain
+
+      - name: Sign the bundled CLI
+        if: env.APPLE_CERTIFICATE != ''
+        run: |
+          codesign --force --options runtime --timestamp \
+            --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" \
+            crates/klef-gui/cli-bundle/klef
+          # Assert the three things notarization checks, so a regression fails
+          # here in seconds instead of after a round trip to Apple.
+          out="$(codesign -dvvv crates/klef-gui/cli-bundle/klef 2>&1)"
+          echo "$out" | grep -q 'flags=.*runtime' || {
+            echo "::error::bundled CLI lacks the hardened runtime"; exit 1; }
+          echo "$out" | grep -q '^Authority=Developer ID Application' || {
+            echo "::error::bundled CLI is not signed with a Developer ID"; exit 1; }
+          echo "$out" | grep -q '^Timestamp=' || {
+            echo "::error::bundled CLI signature has no secure timestamp"; exit 1; }
+          echo "✓ bundled CLI: Developer ID, hardened runtime, secure timestamp"
+
       # Two build steps rather than one with conditional env: a half-populated
       # signing config fails deep inside the bundler at release time, which is
       # the worst moment to debug it. Either every secret is present and we
