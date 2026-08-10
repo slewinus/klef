@@ -28,15 +28,19 @@ jobs:
           - target: x86_64-apple-darwin
             runner: macos-latest
             os: macos
+            native: false          # cross-compiled from the arm64 runner
           - target: aarch64-apple-darwin
             runner: macos-latest
             os: macos
+            native: true
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-latest
             os: linux
+            native: true
           - target: aarch64-unknown-linux-gnu
             runner: ubuntu-24.04-arm
             os: linux
+            native: true
 
     runs-on: ${{ matrix.runner }}
 
@@ -69,8 +73,24 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
+      # `--features mcp` is NOT optional here: without it the published binaries
+      # have no `klef mcp` subcommand, which is what users wire into Claude Code
+      # and Codex. It shipped missing from v0.4.0 through v0.4.3 because this
+      # line didn't have it while the GUI's CI job did — so the binary bundled
+      # in the .app had MCP and every tarball didn't. The verify step below
+      # exists so that can't happen silently again.
       - name: Build release binary
-        run: cargo build --release --locked --target ${{ matrix.target }} -p klef
+        run: cargo build --release --locked --target ${{ matrix.target }} -p klef --features mcp
+
+      - name: Verify the mcp subcommand is present
+        if: matrix.native
+        run: |
+          BIN="target/${{ matrix.target }}/release/klef"
+          "$BIN" mcp --help > /dev/null || {
+            echo "::error::built binary has no 'mcp' subcommand — --features mcp missing?"
+            exit 1
+          }
+          echo "✓ $BIN exposes 'klef mcp'"
 
       - name: Strip binary
         run: |

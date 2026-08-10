@@ -2,6 +2,7 @@
 //! (process spawn with klef: refs injected). See `docs/mcp.md`.
 
 pub mod audit;
+pub mod install;
 pub mod policy;
 pub mod redact;
 pub mod run_proc;
@@ -22,6 +23,26 @@ use rmcp::service::{RequestContext, RoleServer};
 use serde_json::json;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+/// Route `klef mcp [ACTION]`.
+///
+/// No action means "run the stdio server" — that is the form every registered
+/// MCP client spawns, so it has to stay the default and can't become a required
+/// subcommand.
+///
+/// # Errors
+///
+/// Propagates whatever the selected action returns.
+pub fn dispatch(
+    store: Store,
+    policy: Option<PathBuf>,
+    action: Option<&crate::cli::McpAction>,
+) -> Result<(), KlefError> {
+    match action {
+        Some(crate::cli::McpAction::Install { dry_run }) => install::run(*dry_run),
+        None => run(store, policy),
+    }
+}
 
 /// Entry point for `klef mcp`. Loads the policy, starts the rmcp server
 /// over stdio, and blocks until stdin closes.

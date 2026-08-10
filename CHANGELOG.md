@@ -9,10 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`klef mcp install`** registers klef as an MCP server with the agent CLIs found on `PATH` (Claude Code, Codex) in one command, and prints the JSON snippet for Claude Desktop, which has no CLI. It delegates to each client's own `mcp add` rather than merging their config files — those hold plenty of unrelated user settings, and owning a parser per client means risking someone's whole config on a bug in ours. Idempotent; `--dry-run` shows the commands without running them.
 - **`scripts/sign-local.sh`** — codesigns a locally-built klef with a stable identity. `cargo build` produces an ad-hoc signature whose identifier is derived from the binary's own bytes, so a macOS keychain ACL has nothing durable to trust: "Always Allow" never sticks and every rebuild prompts for the login password again. This is a *separate* cause from the auto-lock timeout that `klef keychain configure` fixes, and `docs/macos-keychain.md` now tells the two apart with a one-line check.
 
 ### Fixed
 
+- **Released binaries had no `klef mcp` subcommand.** `release.yml` built with plain `cargo build … -p klef`, never passing `--features mcp`, so every tarball from v0.4.0 through v0.4.3 shipped without the MCP server — while the CHANGELOG claimed it was "enabled by Homebrew + release binaries". Only the binary bundled inside `klef.app` had it, because the GUI's CI job does build with the feature. The release build now passes `--features mcp`, and a verification step runs `klef mcp --help` on every natively-executable target so it can't regress silently again.
 - **`klef backup --recipient` no longer produces a backup klef can't read** (closes [#59](https://github.com/slewinus/klef/issues/59)). `backup` accepted `--recipient`, printed a success line, and wrote a valid age file — but `restore` rejected every non-scrypt file, so the flag silently produced unrestorable backups and nothing surfaced that until the day you needed one. `klef restore` now takes `--identity <FILE>` (repeatable) and reads the file header to pick the mode: a recipient-encrypted backup without `--identity`, or `--identity` against a passphrase backup, is refused up front with the correct command instead of prompting for the wrong secret.
 
 ## [0.4.3] - 2026-08-10

@@ -143,3 +143,25 @@ async fn klef_run_deny_shell_returns_error() {
 
     client.cancel().await.ok();
 }
+
+/// `klef mcp install --dry-run` must describe what it would do and change
+/// nothing. Also pins that `mcp` gained a subcommand without `klef mcp` alone
+/// ceasing to mean "run the server" — every registered client invokes that form.
+#[test]
+fn mcp_install_dry_run_changes_nothing() {
+    let out = std::process::Command::new(klef_bin())
+        .args(["mcp", "install", "--dry-run"])
+        .output()
+        .expect("spawn klef mcp install");
+
+    assert!(out.status.success(), "install --dry-run must exit 0");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("klef binary:"),
+        "should name the binary it would register: {stdout}"
+    );
+    assert!(
+        stdout.contains("claude_desktop_config.json"),
+        "should print the Claude Desktop snippet: {stdout}"
+    );
+}
