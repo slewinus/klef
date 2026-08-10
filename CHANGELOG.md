@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-08-10
+
+Security + performance patch on v0.4.2. No breaking changes; the public surface
+of both crates is unchanged. `klef` 0.4.2 → 0.4.3, `klef-core` 0.3.1 → 0.3.2,
+`klef-gui` unchanged at 0.2.1.
+
 ### Security
 
 - `klef run` and `klef edit --note-edit` no longer pass `KLEF_PASSPHRASE` to the
@@ -27,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `(len, mtime)`, so a write by a concurrent klef process invalidates it. Partial
   fix for #62 — the remaining cost is `Store::add` writing the vault twice (once
   for the secret, once for the index), which needs a batched `Store` API.
+
+### Fixed
+
+- **`docs/llm-usage.md` documented the wrong `klef status --format json` shape.** It described `desync` as a flat list of key names; it has been an object with `index_to_backend` and `backend_to_index` since the reverse-direction check landed. `backend_to_index` is `null` when the backend can't enumerate (the OS keychain can't) — documented now, so an agent doesn't read `null` as healthy. The sample also showed a stale `klef_version` and a `backend` value (`"KeychainBackend"`) that klef never emits.
 
 ## [0.4.2] - 2026-05-26
 

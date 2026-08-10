@@ -12,7 +12,7 @@ build = "build.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-klef-core = { version = "0.3.1", path = "../klef-core" }
+klef-core = { version = "0.3.2", path = "../klef-core" }
 tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-global-shortcut = "2"

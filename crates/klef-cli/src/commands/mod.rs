@@ -29,6 +29,6 @@ pub mod tags;
 ///
 /// The MCP path doesn't need this: `mcp::run_proc` builds the child env from
 /// scratch with `env_clear` plus an explicit whitelist.
-pub fn scrub_secret_env(cmd: &mut std::process::Command) {
+pub(crate) fn scrub_secret_env(cmd: &mut std::process::Command) {
     cmd.env_remove("KLEF_PASSPHRASE");
 }

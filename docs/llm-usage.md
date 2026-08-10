@@ -47,15 +47,25 @@ klef list --format json
 
 klef status --format json
 # {
-#   "klef_version": "0.2.0",
-#   "backend": "KeychainBackend",
+#   "klef_version": "0.4.3",
+#   "backend": "keychain",
 #   "index_path": "...",
 #   "keys": 3,
-#   "desync": []
+#   "desync": {
+#     "index_to_backend": [],
+#     "backend_to_index": []
+#   }
 # }
 ```
 
-The `desync` field is a list of key names that are in the index but missing from the backend. Empty list = healthy.
+`backend` is `"keychain"`, or `"age:<path>"` when `--backend age:…` is in use.
+
+`desync` is an **object with two directions**, not a list:
+
+- `index_to_backend`: names present in the index but missing from the backend — a partial `rm`, or a keychain entry deleted outside klef.
+- `backend_to_index`: names present in the backend but missing from the index — a partial `add` whose index write failed. This is `null` when the backend can't enumerate (the OS keychain can't), so treat `null` as "unknown", not "healthy".
+
+Healthy = both arrays empty. `klef status` exits 1 on any desync, so the exit code alone is enough for a yes/no check.
 
 ## Critical: never print secret values back to the user without their explicit ask
 
