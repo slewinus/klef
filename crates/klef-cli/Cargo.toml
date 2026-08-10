@@ -1,6 +1,6 @@
 [package]
 name = "klef"
-version = "0.4.3"
+version = "0.4.4"
 description = "Local-first vault for API keys and secrets, backed by the OS keychain."
 edition.workspace = true
 license.workspace = true

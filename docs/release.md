@@ -4,9 +4,10 @@
 
 ```bash
 # 1. Update CHANGELOG.md: move [Unreleased] to [X.Y.Z]
-# 2. Bump Cargo.toml version
+# 2. Bump Cargo.toml version (only the crates that actually changed)
 # 3. Commit + push to main
-# 4. Tag and push:
+# 4. Tag FROM MAIN — check where you are first, see the warning below:
+git checkout main && git pull --ff-only
 git tag -a vX.Y.Z -m "klef vX.Y.Z"
 git push origin vX.Y.Z
 # 5. The release workflow (.github/workflows/release.yml) builds binaries
@@ -17,6 +18,29 @@ gh release view vX.Y.Z --json assets --jq '.assets | length'
 # 7. Publish to crates.io (manual, in dependency order):
 cargo publish -p klef-core && cargo publish -p klef
 # 8. Bump the Homebrew formula (see the "Homebrew" section below).
+```
+
+## Tag from main, not from wherever you happen to be
+
+`git tag` tags `HEAD`. Run it on a feature branch and the tag lands on a commit
+that isn't on `main` — the release then builds from that tree, and the tag turns
+into a dangling reference the moment the branch is rebased or deleted.
+
+This has happened: v0.4.3 was first tagged from a docs branch, and the release
+workflow started building the wrong tree before it was caught. Recovery, if you
+notice in time:
+
+```bash
+gh run cancel <run-id>            # before the release job publishes anything
+git push origin :refs/tags/vX.Y.Z # delete the remote tag
+git tag -d vX.Y.Z
+git tag -a vX.Y.Z <main-sha> -m "klef vX.Y.Z" && git push origin vX.Y.Z
+```
+
+Afterwards, confirm the tag is reachable from main:
+
+```bash
+git merge-base --is-ancestor "$(git rev-list -n1 vX.Y.Z)" origin/main && echo OK
 ```
 
 ## Verifying without tagging
@@ -41,6 +65,18 @@ sat with zero assets while `cargo install` and Homebrew silently kept serving
 ```bash
 gh run list --workflow=release.yml --limit 1   # must show the new tag
 gh release view vX.Y.Z --json assets --jq '.assets | length'   # must be 8
+```
+
+Then check the binary is actually the one you meant to ship. The release job
+builds with `--features mcp` and verifies `klef mcp --help` on every natively
+executable target — that guard exists because v0.4.0 through v0.4.3 all shipped
+tarballs with no MCP server while the CHANGELOG said otherwise. Nothing caught
+it because the GUI's CI job *does* build with the feature, so the binary bundled
+inside `klef.app` had MCP and only the tarballs didn't. Spot-check anyway:
+
+```bash
+tar -xzf klef-vX.Y.Z-aarch64-apple-darwin.tar.gz
+./klef-vX.Y.Z-aarch64-apple-darwin/klef mcp --help >/dev/null && echo "mcp OK"
 ```
 
 If the release exists but has no assets, don't delete it — deleting throws away
