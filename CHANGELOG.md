@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/sign-local.sh`** — codesigns a locally-built klef with a stable identity. `cargo build` produces an ad-hoc signature whose identifier is derived from the binary's own bytes, so a macOS keychain ACL has nothing durable to trust: "Always Allow" never sticks and every rebuild prompts for the login password again. This is a *separate* cause from the auto-lock timeout that `klef keychain configure` fixes, and `docs/macos-keychain.md` now tells the two apart with a one-line check.
+
 ### Fixed
 
 - **`klef backup --recipient` no longer produces a backup klef can't read** (closes [#59](https://github.com/slewinus/klef/issues/59)). `backup` accepted `--recipient`, printed a success line, and wrote a valid age file — but `restore` rejected every non-scrypt file, so the flag silently produced unrestorable backups and nothing surfaced that until the day you needed one. `klef restore` now takes `--identity <FILE>` (repeatable) and reads the file header to pick the mode: a recipient-encrypted backup without `--identity`, or `--identity` against a passphrase backup, is refused up front with the correct command instead of prompting for the wrong secret.
