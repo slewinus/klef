@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-08-10
+
+Ships the MCP server that the last four releases claimed to ship, and closes the
+last known data-loss trap. `klef` 0.4.3 → 0.4.4; `klef-core` unchanged at 0.3.2
+(no code in it changed this cycle, so there is nothing to republish).
+
+**Compatibility note.** No behaviour changes for CLI users. The `klef` *library*
+target is a different story: `commands::restore::run` gained a parameter,
+`commands::restore::age_decrypt` is no longer `pub`, and `Command::Mcp` gained a
+field. Strict semver would call that a minor bump. It's kept as a patch because
+this crate's lib exists to serve its own `main.rs` — as `lib.rs` says, anything
+reusable belongs in `klef-core` — and nothing outside the crate is expected to
+call into `commands::*`. Narrowing `commands` to `pub(crate)` so this stops
+being ambiguous is queued for the next minor.
+
 ### Added
 
 - **`klef mcp install`** registers klef as an MCP server with the agent CLIs found on `PATH` (Claude Code, Codex) in one command, and prints the JSON snippet for Claude Desktop, which has no CLI. It delegates to each client's own `mcp add` rather than merging their config files — those hold plenty of unrelated user settings, and owning a parser per client means risking someone's whole config on a bug in ours. Idempotent; `--dry-run` shows the commands without running them.

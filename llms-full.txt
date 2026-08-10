@@ -223,6 +223,8 @@ Claude Code, Cursor and ChatGPT agents can ingest these files and know how to dr
 
 ## Status
 
+✅ **v0.4.4** tagged (2026-08-10) — ships the MCP server that v0.4.0–v0.4.3 claimed to ship but didn't: `release.yml` never passed `--features mcp`, so every published tarball lacked the `klef mcp` subcommand while the binary bundled in `klef.app` had it. New `klef mcp install` wires klef into Claude Code and Codex in one command. `klef restore --identity` can finally read backups made with `klef backup --recipient`, which until now were written successfully and could never be restored ([#59](https://github.com/slewinus/klef/issues/59)).
+
 ✅ **v0.4.3** tagged (2026-08-10) — security + performance patch on v0.4.2. `klef run` and `klef edit --note-edit` no longer hand `KLEF_PASSPHRASE` to the child process (in CI, `klef run -- npm start` was giving the age vault's master key to npm and every postinstall script under it). The age backend now caches the decrypted vault while the file is unchanged: `add` drops from 7.9s to 4.0s, `get` from 2.9s to 1.3s (partial fix for [#62](https://github.com/slewinus/klef/issues/62)).
 
 ✅ **v0.4.2** tagged (2026-05-26) — bug-fix patch on v0.4.1. Three CLI/core fixes from the backlog audit: `klef edit <name>` no longer clobbers custom `env_var` ([#71](https://github.com/slewinus/klef/issues/71)), piped commands (`klef list | head`, etc.) exit cleanly on SIGPIPE instead of panicking ([#73](https://github.com/slewinus/klef/issues/73)), and `Store::restore` now holds the exclusive lock across both phases to prevent races with concurrent writes ([#72](https://github.com/slewinus/klef/issues/72)). README translated to English ([#126](https://github.com/slewinus/klef/pull/126)).
