@@ -25,6 +25,8 @@ for one-shot LLM context loading. For navigation, see `llms.txt`.
 
 A local vault for your API keys and secrets — so you stop losing them in Dashlane, Notes, or scattered `.env` files.
 
+![klef in action: importing a plaintext .env into the Keychain, then running a command with the values resolved](./docs/klef-demo.gif)
+
 ## The problem
 
 You have 15 API keys (Stripe, Anthropic, OpenAI, Gemini, Telnyx, etc.). You stash them in Dashlane, in text files, in lost `.env` files. When you start a project, you spend 10 minutes hunting them down — and worst of all, you copy-paste the value into the project's `.env`, so it lingers in plaintext on your disk.
@@ -89,9 +91,7 @@ $ klef run -- node app.js
 Server on port 3000, Stripe wired ✓
 ```
 
-[![asciicast](https://asciinema.org/a/5z9zCmNWd1igb3MH.svg)](https://asciinema.org/a/5z9zCmNWd1igb3MH)
-
-_Cast source: [`docs/klef-demo.cast`](./docs/klef-demo.cast) — re-uploadable if asciinema.org goes down._
+Same thing as a playable recording: [asciinema.org/a/5z9zCmNWd1igb3MH](https://asciinema.org/a/5z9zCmNWd1igb3MH) (cast source: [`docs/klef-demo.cast`](./docs/klef-demo.cast), re-uploadable if asciinema.org goes down; the GIF above is rendered from it with `agg`).
 
 ## Install
 

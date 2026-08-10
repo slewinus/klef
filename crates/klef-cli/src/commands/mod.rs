@@ -14,6 +14,7 @@ pub mod mcp;
 pub mod names;
 pub mod rename;
 pub mod restore;
+mod restore_crypto;
 pub mod rm;
 pub mod run;
 pub mod set_note;

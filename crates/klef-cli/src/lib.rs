@@ -104,7 +104,11 @@ pub fn run(cli: Cli) -> Result<(), KlefError> {
             skip_defaults,
         ),
         Command::Backup { output, recipient } => commands::backup::run(&store, &output, &recipient),
-        Command::Restore { input, force } => commands::restore::run(&store, &input, force),
+        Command::Restore {
+            input,
+            force,
+            identity,
+        } => commands::restore::run(&store, &input, force, &identity),
         Command::Tags => commands::tags::run(&store),
         Command::Names => commands::names::run(&store),
         #[cfg(feature = "mcp")]

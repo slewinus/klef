@@ -169,6 +169,10 @@ pub enum Command {
         /// WARNING: pre-existing values are NOT backed up automatically.
         #[arg(long)]
         force: bool,
+        /// age identity file holding the private key(s) for a backup made with
+        /// `--recipient`. Repeatable. Omit for passphrase-encrypted backups.
+        #[arg(long, value_name = "FILE")]
+        identity: Vec<PathBuf>,
     },
     /// List all tags in the vault with the count of keys carrying each.
     Tags,

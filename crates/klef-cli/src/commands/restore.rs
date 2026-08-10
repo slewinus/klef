@@ -1,12 +1,11 @@
 //! `klef restore` — restore a vault from an age-encrypted backup.
 
+use crate::commands::restore_crypto::age_decrypt;
 use crate::outln;
 use klef_core::backup::Bundle;
 use klef_core::error::KlefError;
 use klef_core::store::Store;
-use std::io::Read as _;
 use std::path::Path;
-use zeroize::Zeroizing;
 
 /// Run `klef restore`.
 ///
@@ -26,9 +25,14 @@ use zeroize::Zeroizing;
 /// Returns an error if decryption fails, the bundle is malformed, any
 /// conflict is detected (without `--force`), or any backend/index write
 /// fails while the lock is held.
-pub fn run(store: &Store, input: &Path, force: bool) -> Result<(), KlefError> {
+pub fn run(
+    store: &Store,
+    input: &Path,
+    force: bool,
+    identities: &[std::path::PathBuf],
+) -> Result<(), KlefError> {
     // Phase 0: Preflight — no writes.
-    let bundle = decrypt_and_parse(input)?;
+    let bundle = decrypt_and_parse(input, identities)?;
     validate_bundle(&bundle)?;
     let conflicts = detect_conflicts(store, &bundle)?;
     if !conflicts.is_empty() && !force {
@@ -47,68 +51,15 @@ pub fn run(store: &Store, input: &Path, force: bool) -> Result<(), KlefError> {
     Ok(())
 }
 
-fn decrypt_and_parse(input: &Path) -> Result<Bundle, KlefError> {
+fn decrypt_and_parse(input: &Path, identities: &[std::path::PathBuf]) -> Result<Bundle, KlefError> {
     let ciphertext = std::fs::read(input).map_err(KlefError::Io)?;
-    let plaintext = age_decrypt(&ciphertext)?;
+    let plaintext = age_decrypt(&ciphertext, identities)?;
     let bundle: Bundle =
         serde_json::from_slice(&plaintext).map_err(|e| KlefError::IndexCorrupt {
             path: input.to_path_buf(),
             reason: format!("invalid bundle: {e}"),
         })?;
     Ok(bundle)
-}
-
-/// Read a single passphrase line from stdin, hiding input when on a TTY.
-fn read_passphrase(prompt: &str) -> Result<String, KlefError> {
-    use std::io::IsTerminal as _;
-    if std::io::stdin().is_terminal() {
-        rpassword::prompt_password(prompt).map_err(|e| KlefError::BackendUnavailable(e.to_string()))
-    } else {
-        use std::io::BufRead as _;
-        let mut line = String::new();
-        std::io::stdin()
-            .lock()
-            .read_line(&mut line)
-            .map_err(KlefError::Io)?;
-        Ok(line
-            .trim_end_matches('\n')
-            .trim_end_matches('\r')
-            .to_string())
-    }
-}
-
-/// Decrypt an age ciphertext, prompting for a passphrase if needed.
-///
-/// Only passphrase-encrypted backups are supported on the restore side.
-/// Recipient-encrypted backups require an identity file — not yet supported.
-///
-/// # Errors
-///
-/// Returns an error if the file is not a valid age file, if the passphrase is
-/// wrong, or if recipient-based encryption is detected.
-pub fn age_decrypt(ciphertext: &[u8]) -> Result<Zeroizing<Vec<u8>>, KlefError> {
-    let decryptor = age::Decryptor::new(ciphertext)
-        .map_err(|e| KlefError::BackendUnavailable(format!("age decrypt init: {e}")))?;
-
-    if !decryptor.is_scrypt() {
-        return Err(KlefError::BackendUnavailable(
-            "restore from recipient-encrypted backup is not supported in v0.x; \
-             re-encrypt with a passphrase or wait for a follow-up release."
-                .to_string(),
-        ));
-    }
-
-    let pass = read_passphrase("Passphrase: ")?;
-    let passphrase = age::secrecy::SecretString::from(pass);
-
-    let identity = age::scrypt::Identity::new(passphrase);
-    let mut reader = decryptor
-        .decrypt(std::iter::once(&identity as &dyn age::Identity))
-        .map_err(|e| KlefError::BackendUnavailable(format!("age decrypt: {e}")))?;
-
-    let mut output = Zeroizing::new(Vec::new());
-    reader.read_to_end(&mut output).map_err(KlefError::Io)?;
-    Ok(output)
 }
 
 fn validate_bundle(bundle: &Bundle) -> Result<(), KlefError> {
