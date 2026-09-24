@@ -14,6 +14,10 @@ pub const STDERR_CAP_BYTES: usize = 1024 * 1024;
 pub const HARDCAP_TIMEOUT_MS: u64 = 300_000;
 pub const DEFAULT_TIMEOUT_MS: u64 = 30_000;
 
+/// Extra time the output readers get past the timeout, so a timed-out group
+/// (SIGTERM, 2s, SIGKILL) closes its pipes before we stop reading.
+const DRAIN_GRACE: Duration = Duration::from_secs(3);
+
 const PARENT_ENV_WHITELIST: &[&str] = &["PATH", "HOME", "USER", "LANG", "LC_ALL", "TERM", "TMPDIR"];
 
 #[derive(Debug)]
@@ -100,16 +104,34 @@ pub async fn spawn_and_capture(req: ProcRequest) -> Result<ProcResult, ProcError
 
     let stdout = child.stdout.take().expect("piped");
     let stderr = child.stderr.take().expect("piped");
-    let stdout_task = tokio::spawn(read_capped(stdout, STDOUT_CAP_BYTES));
-    let stderr_task = tokio::spawn(read_capped(stderr, STDERR_CAP_BYTES));
-
     let timeout_ms = req.timeout_ms.min(HARDCAP_TIMEOUT_MS);
+    // A descendant that escaped the group (its own setsid) can hold the pipes
+    // open forever; the readers give up at this deadline instead.
+    // ponytail: an early-exiting leader with such a descendant still waits the
+    // full timeout; signal the readers on exit if that latency ever matters.
+    let read_deadline =
+        tokio::time::Instant::now() + Duration::from_millis(timeout_ms) + DRAIN_GRACE;
+    let stdout_task = tokio::spawn(read_capped(stdout, STDOUT_CAP_BYTES, read_deadline));
+    let stderr_task = tokio::spawn(read_capped(stderr, STDERR_CAP_BYTES, read_deadline));
+
     let wait = child.wait();
     let outcome = tokio::time::timeout(Duration::from_millis(timeout_ms), wait).await;
 
     let timed_out = outcome.is_err();
     let exit_status = match outcome {
-        Ok(Ok(s)) => Some(s),
+        Ok(Ok(s)) => {
+            // The leader is done; anything left in its group is a background
+            // descendant still holding the injected secrets. Kill it.
+            #[cfg(unix)]
+            if let Some(pgid) = pgid {
+                // SAFETY: killpg() only signals the session we created via setsid().
+                #[allow(unsafe_code)]
+                unsafe {
+                    libc::killpg(pgid, libc::SIGKILL);
+                }
+            }
+            Some(s)
+        }
         Ok(Err(e)) => return Err(ProcError::Spawn(e)),
         Err(_) => {
             #[cfg(unix)]
@@ -142,20 +164,27 @@ pub async fn spawn_and_capture(req: ProcRequest) -> Result<ProcResult, ProcError
     })
 }
 
-async fn read_capped<R: AsyncReadExt + Unpin>(mut r: R, cap: usize) -> (Vec<u8>, bool) {
+async fn read_capped<R: AsyncReadExt + Unpin>(
+    mut r: R,
+    cap: usize,
+    deadline: tokio::time::Instant,
+) -> (Vec<u8>, bool) {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 8192];
     let mut truncated = false;
     loop {
-        match r.read(&mut chunk).await {
-            Ok(0) | Err(_) => break,
-            Ok(n) => {
+        match tokio::time::timeout_at(deadline, r.read(&mut chunk)).await {
+            Err(_) | Ok(Ok(0) | Err(_)) => break,
+            Ok(Ok(n)) => {
                 if buf.len() + n > cap {
                     let take = cap.saturating_sub(buf.len());
                     buf.extend_from_slice(&chunk[..take]);
                     truncated = true;
                     let mut sink = [0u8; 8192];
-                    while r.read(&mut sink).await.unwrap_or(0) > 0 {}
+                    while let Ok(Ok(1..)) =
+                        tokio::time::timeout_at(deadline, r.read(&mut sink)).await
+                    {
+                    }
                     break;
                 }
                 buf.extend_from_slice(&chunk[..n]);
@@ -182,97 +211,5 @@ async fn kill_group(pgid: i32) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::collections::HashMap;
-
-    fn echo(args: &[&str]) -> ProcRequest {
-        ProcRequest {
-            argv: std::iter::once("echo".to_string())
-                .chain(args.iter().map(|s| (*s).to_string()))
-                .collect(),
-            env: HashMap::new(),
-            cwd: None,
-            timeout_ms: 5000,
-        }
-    }
-
-    #[tokio::test]
-    async fn echo_returns_stdout_and_zero_exit() {
-        let r = spawn_and_capture(echo(&["hello"])).await.unwrap();
-        assert_eq!(r.exit_code, 0);
-        assert!(!r.timed_out);
-        assert_eq!(String::from_utf8(r.stdout).unwrap().trim(), "hello");
-    }
-
-    #[tokio::test]
-    async fn injected_env_visible_to_child() {
-        let mut env = HashMap::new();
-        env.insert("KLEF_TEST_VAR".into(), "secret-xyz".into());
-        let req = ProcRequest {
-            argv: vec!["sh".into(), "-c".into(), "echo $KLEF_TEST_VAR".into()],
-            env,
-            cwd: None,
-            timeout_ms: 5000,
-        };
-        // NOTE: uses sh for env-visibility test only; production policy will deny this argv.
-        let r = spawn_and_capture(req).await.unwrap();
-        assert_eq!(String::from_utf8(r.stdout).unwrap().trim(), "secret-xyz");
-    }
-
-    #[tokio::test]
-    async fn parent_env_not_inherited_outside_whitelist() {
-        // SAFETY: tokio::test runs on a dedicated runtime; env is process-global but
-        // we set + unset within this test only. Other parallel tests do not read this var.
-        #[allow(unsafe_code)]
-        unsafe {
-            std::env::set_var("KLEF_NOT_WHITELISTED", "leak-me");
-        }
-        let req = ProcRequest {
-            argv: vec![
-                "sh".into(),
-                "-c".into(),
-                "echo ${KLEF_NOT_WHITELISTED:-absent}".into(),
-            ],
-            env: HashMap::new(),
-            cwd: None,
-            timeout_ms: 5000,
-        };
-        let r = spawn_and_capture(req).await.unwrap();
-        #[allow(unsafe_code)]
-        unsafe {
-            std::env::remove_var("KLEF_NOT_WHITELISTED");
-        }
-        assert_eq!(String::from_utf8(r.stdout).unwrap().trim(), "absent");
-    }
-
-    #[tokio::test]
-    async fn timeout_marks_timed_out_and_kills() {
-        let req = ProcRequest {
-            argv: vec!["sleep".into(), "30".into()],
-            env: HashMap::new(),
-            cwd: None,
-            timeout_ms: 200,
-        };
-        let r = spawn_and_capture(req).await.unwrap();
-        assert!(r.timed_out);
-        assert!(
-            r.duration_ms < 5000,
-            "kill must be prompt; got {} ms",
-            r.duration_ms
-        );
-    }
-
-    #[tokio::test]
-    async fn stdout_truncates_at_cap() {
-        let req = ProcRequest {
-            argv: vec!["sh".into(), "-c".into(), "yes hello".into()],
-            env: HashMap::new(),
-            cwd: None,
-            timeout_ms: 1500,
-        };
-        let r = spawn_and_capture(req).await.unwrap();
-        assert!(r.stdout_truncated);
-        assert!(r.stdout.len() <= STDOUT_CAP_BYTES);
-    }
-}
+#[path = "run_proc_tests.rs"]
+mod tests;

@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **`klef-gui` version drift.** The crate said `0.2.1` in `Cargo.toml` and `0.4.1` in `tauri.conf.json`, so the built app advertised a version the crate didn't have. Both now track the workspace release version (`0.4.4`) — the cask ships the CLI and GUI together, so they are one product from the user's side.
+- **MCP `klef_run` could outlive its timeout and leave secret-holding processes behind.** A background descendant (`npm run dev` starting a watcher) kept the output pipe open, so the call waited on it without bound and the descendant kept the injected env. The process group is now killed when the leader exits, and output reads stop at timeout + 3s even for a descendant that left the group.
+- **`klef export --format dotenv` corrupted values with quotes or spaces.** It emitted shell quoting (`'it'\''s'`), which dotenv readers — `klef run` included — read back as `it`. Dotenv output now wraps in whichever quote the value lacks, and refuses (pointing to `--format shell`) values holding a newline or both quote kinds.
 
 ## [0.4.4] - 2026-08-10
 
