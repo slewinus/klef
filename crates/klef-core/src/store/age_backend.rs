@@ -25,10 +25,6 @@ use zeroize::Zeroizing;
 use super::age_cache::{Stamp, hit, stamp};
 use super::age_crypto::{age_decrypt, age_encrypt};
 
-// ---------------------------------------------------------------------------
-// On-disk format
-// ---------------------------------------------------------------------------
-
 /// The full contents of an age vault file (v1).
 ///
 /// `version` is written on every save and is defaulted to 1 on deserialization
@@ -62,10 +58,6 @@ impl Default for AgeVault {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Backend struct
-// ---------------------------------------------------------------------------
 
 /// Age-encrypted file backend.
 ///
@@ -103,6 +95,22 @@ impl AgeBackend {
             inner: Arc::new(AgeBackendInner {
                 path,
                 state: Mutex::new(State::default()),
+            }),
+        }
+    }
+
+    /// Like [`Self::new`], with the passphrase supplied up front — for callers
+    /// with no TTY (the GUI unlock prompt). A wrong one fails on first read.
+    #[must_use]
+    pub fn with_passphrase(path: PathBuf, passphrase: String) -> Self {
+        let state = State {
+            passphrase: Some(SecretString::from(passphrase)),
+            cache: None,
+        };
+        Self {
+            inner: Arc::new(AgeBackendInner {
+                path,
+                state: Mutex::new(state),
             }),
         }
     }
@@ -226,10 +234,6 @@ impl AgeBackend {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Trait impls
-// ---------------------------------------------------------------------------
-
 impl Backend for AgeBackend {
     fn describe(&self) -> String {
         format!("age:{}", self.inner.path.display())
@@ -286,9 +290,6 @@ impl MetaStore for AgeBackend {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 // Tests are in a separate file for file-cap discipline (included here so they
 // can still access private types like `State` / `AgeBackendInner`).
 

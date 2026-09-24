@@ -20,12 +20,13 @@
 //!   `klef_core::store::validate_env_var`.)
 
 mod helpers;
+mod types;
 
 use crate::AppState;
 use helpers::{
     canonicalize_source, klef_name_from_env_var, project_from_path, redact, rewrite_dotenv,
 };
-use serde::Serialize;
+pub use types::*;
 
 /// Max preview sessions held server-side. Bound prevents a chatty/buggy
 /// frontend from leaking memory; oldest is evicted at capacity.
@@ -38,77 +39,22 @@ const MAX_SESSIONS: usize = 8;
 /// review-the-list flow and short enough that idle sessions don't linger.
 const SESSION_TTL: std::time::Duration = std::time::Duration::from_mins(5);
 
-/// Full parsed plan held server-side, keyed by a UUID session id. The
-/// webview never sees `value`; it gets a `WebPlanItem` + session id and
-/// apply re-loads from this state.
-pub struct ServerPlan {
-    pub source_path: std::path::PathBuf,
-    pub suggested_project: String,
-    pub items: Vec<ServerPlanItem>,
-    /// Monotonic insert order — used to evict the oldest at `MAX_SESSIONS`.
-    pub created_seq: u64,
-    /// Wall-clock creation time, used to enforce `SESSION_TTL`.
-    pub created_at: std::time::Instant,
-}
-
-pub struct ServerPlanItem {
-    pub env_var: String,
-    pub klef_name: String,
-    pub value: String,
-    pub status: ItemStatus,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ItemStatus {
-    New,
-    Conflict,
-    Ref,
-    Empty,
-}
-
-impl ItemStatus {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::New => "new",
-            Self::Conflict => "conflict",
-            Self::Ref => "ref",
-            Self::Empty => "empty",
-        }
-    }
-
-    const fn is_importable(self) -> bool {
-        matches!(self, Self::New | Self::Conflict)
-    }
-}
-
-#[derive(Serialize)]
-pub struct WebPlanItem {
-    pub env_var: String,
-    pub klef_name: String,
-    pub redacted_value: String,
-    /// `new` | `conflict` | `ref` | `empty`
-    pub status: &'static str,
-}
-
-#[derive(Serialize)]
-pub struct WebPlan {
-    pub session_id: String,
-    pub suggested_project: String,
-    pub source_path: String,
-    pub items: Vec<WebPlanItem>,
-}
-
-#[allow(clippy::needless_pass_by_value)]
+/// Parse the file and hold the plan server-side; returns the redacted view.
 #[tauri::command]
-pub fn preview_dotenv_import(
+pub async fn preview_dotenv_import(
     path: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<WebPlan, String> {
+    let st = state.inner().clone();
+    crate::state::blocking(move || preview(&path, &st)).await
+}
+
+fn preview(path: &str, state: &AppState) -> Result<WebPlan, String> {
     use klef_core::envfile::{self, Value};
-    let canonical = canonicalize_source(&path)?;
+    let canonical = canonicalize_source(path)?;
     let entries = envfile::parse(&canonical).map_err(|e| e.to_string())?;
     let existing: std::collections::HashSet<String> = state
-        .store
+        .store()
         .list()
         .map_err(|e| e.to_string())?
         .into_iter()
@@ -220,14 +166,25 @@ fn prune_expired(sessions: &mut std::collections::HashMap<String, ServerPlan>) {
 /// the user checked in the preview UI; anything not in this set is skipped.
 /// Items the server marked as `ref` or `empty` are always skipped
 /// regardless of this list.
-#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
-pub fn apply_dotenv_import(
+pub async fn apply_dotenv_import(
     session_id: String,
     project: String,
     rewrite_source: bool,
     accepted: Vec<String>,
     state: tauri::State<'_, AppState>,
+) -> Result<u32, String> {
+    let st = state.inner().clone();
+    crate::state::blocking(move || apply(&session_id, &project, rewrite_source, &accepted, &st))
+        .await
+}
+
+fn apply(
+    session_id: &str,
+    project: &str,
+    rewrite_source: bool,
+    accepted: &[String],
+    state: &AppState,
 ) -> Result<u32, String> {
     // Single-use: pull the session out so a retry can't re-import entries
     // that already landed. Prune expired sessions first so a stale id
@@ -239,7 +196,7 @@ pub fn apply_dotenv_import(
             .map_err(|e| format!("session lock poisoned: {e}"))?;
         prune_expired(&mut sessions);
         sessions
-            .remove(&session_id)
+            .remove(session_id)
             .ok_or_else(|| "unknown or expired import session".to_string())?
     };
 
@@ -258,7 +215,7 @@ pub fn apply_dotenv_import(
         // env_var is re-validated by Store::add (defense-in-depth against
         // a malicious .env smuggling a shell-injection payload).
         state
-            .store
+            .store()
             .add(
                 &it.klef_name,
                 &it.value,

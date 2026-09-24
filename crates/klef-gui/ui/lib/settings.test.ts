@@ -19,12 +19,7 @@ const memoryStorage = (() => {
 })();
 vi.stubGlobal("localStorage", memoryStorage);
 
-const {
-  DEFAULT_SETTINGS,
-  autoClearMs,
-  loadSettings,
-  saveSettings,
-} = await import("./settings");
+const { DEFAULT_SETTINGS, loadSettings, saveSettings } = await import("./settings");
 
 beforeEach(() => {
   memoryStorage.clear();
@@ -68,28 +63,39 @@ describe("loadSettings", () => {
 
 describe("saveSettings", () => {
   it("persists and round-trips", () => {
-    saveSettings({ autoClearSeconds: 60 });
+    saveSettings({ ...DEFAULT_SETTINGS, autoClearSeconds: 60 });
     expect(loadSettings().autoClearSeconds).toBe(60);
   });
 
   it("clamps + rounds before storing", () => {
-    const result = saveSettings({ autoClearSeconds: 12.7 });
+    const result = saveSettings({ ...DEFAULT_SETTINGS, autoClearSeconds: 12.7 });
     expect(result.autoClearSeconds).toBe(13);
   });
 
   it("stores 0 (disabled) without coercing to default", () => {
-    saveSettings({ autoClearSeconds: 0 });
+    saveSettings({ ...DEFAULT_SETTINGS, autoClearSeconds: 0 });
     expect(loadSettings().autoClearSeconds).toBe(0);
   });
 });
 
-describe("autoClearMs", () => {
-  it("returns null when disabled (0 seconds)", () => {
-    expect(autoClearMs({ autoClearSeconds: 0 })).toBeNull();
+describe("shortcut and vault", () => {
+  it("default to ⌘⇧K and the keychain", () => {
+    expect(loadSettings().shortcut).toBe("Cmd+Shift+KeyK");
+    expect(loadSettings().vaultPath).toBeNull();
   });
 
-  it("converts seconds to milliseconds", () => {
-    expect(autoClearMs({ autoClearSeconds: 30 })).toBe(30_000);
-    expect(autoClearMs({ autoClearSeconds: 5 })).toBe(5_000);
+  it("round-trip", () => {
+    saveSettings({ ...DEFAULT_SETTINGS, shortcut: "Ctrl+Alt+KeyP", vaultPath: "/v/klef.age" });
+    expect(loadSettings().shortcut).toBe("Ctrl+Alt+KeyP");
+    expect(loadSettings().vaultPath).toBe("/v/klef.age");
+  });
+
+  it("drop wrong-typed stored values back to defaults", () => {
+    memoryStorage.setItem(
+      "klef.settings.v1",
+      JSON.stringify({ shortcut: 42, vaultPath: "" }),
+    );
+    expect(loadSettings().shortcut).toBe("Cmd+Shift+KeyK");
+    expect(loadSettings().vaultPath).toBeNull();
   });
 });

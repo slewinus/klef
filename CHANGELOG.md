@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The release workflow builds the macOS GUI.** A new `gui` job produces `klef.app`, wraps it in a `.dmg` named to match the Homebrew cask's URL template, and attaches it to the release next to the CLI tarballs. Until now the `.dmg` was built and uploaded by hand, so the cask sat on v0.4.1 while the CLI moved on — cask users were running a `klef` from May, still carrying the `KLEF_PASSPHRASE` leak fixed in 0.4.3. The `release` job now needs both, so a broken GUI build stops the release instead of silently publishing half of it. Signing and notarization switch on when the Apple secrets are configured and are skipped with a warning otherwise; `docs/release.md` lists the six secrets. Part of [#123](https://github.com/slewinus/klef/issues/123).
 - The CLI bundled inside `klef.app` is signed separately before tauri seals the bundle. Notarization rejects a bundle if *any* Mach-O inside it is unsigned, and tauri only signs the app and its own binaries — `Resources/cli-bundle/klef` is a plain copied file it never touches. Apple returned three errors against it: no Developer ID, no secure timestamp, no hardened runtime. The step asserts all three locally so a regression fails in seconds instead of after a round trip to Apple's notary service.
 
+- **GUI: open an age vault.** Settings → Vault switches from the Keychain to an existing `.age` file; the popover asks for its passphrase on launch, checks it by decrypting before switching, and shows the vault name in the header. Add and import are disabled while a configured vault is still locked, so nothing lands in the Keychain by mistake. `klef-core` gains `AgeBackend::with_passphrase` for callers with no TTY.
+- **GUI: configurable global shortcut.** Record any chord with ⌘, ⌃ or ⌥ in Settings (default ⌘⇧K). A chord another app already owns is refused at save time with the reason, instead of failing silently in a log line, and the previous shortcut stays active.
+- **GUI: rename a key** from the edit dialog (`Name` field), same atomic rename as `klef rename`.
+
+### Changed
+
+- **GUI: copying a secret no longer exposes it to the webview.** Rust reads the value and writes the clipboard itself; `get_key_value` is gone, and the webview lost its clipboard and global-shortcut permissions. The copy carries the `org.nspasteboard.ConcealedType` / `TransientType` markers, so clipboard managers (Maccy, Raycast, Paste, Alfred) no longer save your keys in their history. Auto-clear now keys off the pasteboard `changeCount` instead of reading the clipboard back, and a pending clear also runs when the app quits.
+- **GUI: no more freezes on keychain access.** Store commands ran on the main thread, so a macOS Keychain password prompt, an age decrypt, or a large `.env` import froze the popover. They now run on the blocking pool, serialized on one store lock.
+- **GUI: the menu bar icon is a template image**, so macOS tints it for light mode, dark mode and the highlighted state like native icons.
+
 ### Fixed
 
 - **`klef-gui` version drift.** The crate said `0.2.1` in `Cargo.toml` and `0.4.1` in `tauri.conf.json`, so the built app advertised a version the crate didn't have. Both now track the workspace release version (`0.4.4`) — the cask ships the CLI and GUI together, so they are one product from the user's side.

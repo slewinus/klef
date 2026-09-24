@@ -17,6 +17,7 @@
   // (see {#if editTarget} in App.svelte), so we want a one-shot snapshot
   // of the prop, not a reactive binding to it.
   let value = $state("");
+  let name = $state(untrack(() => target.name));
   let envVar = $state(untrack(() => target.env_var));
   let note = $state(untrack(() => target.note ?? ""));
   let tagsRaw = $state(untrack(() => (target.tags ?? []).join(", ")));
@@ -40,8 +41,10 @@
         .split(",")
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
+      const renamed = name.trim();
       await editKey({
         name: target.name,
+        newName: renamed && renamed !== target.name ? renamed : undefined,
         value: value.length > 0 ? value : undefined,
         envVar: envVar.trim() || undefined,
         note: note.trim() || undefined,
@@ -75,6 +78,11 @@
 ></div>
 <form class="modal" onsubmit={submit}>
   <h2>Edit “{target.name}”</h2>
+
+  <label>
+    <span>Name</span>
+    <input bind:value={name} type="text" autocomplete="off" spellcheck="false" />
+  </label>
 
   <label class="value-row">
     <span>New value</span>

@@ -233,3 +233,14 @@ fn legacy_vault_without_index_field_loads_with_synthesized_metadata() {
     assert_eq!(data.keys["foo"].env_var, "FOO_API_KEY");
     assert_eq!(b.get("foo").unwrap(), "bar");
 }
+
+/// The GUI has no TTY: it hands the passphrase in at construction.
+#[test]
+fn with_passphrase_opens_a_vault_without_prompting() {
+    let d = tempdir().unwrap();
+    let p = d.path().join("v.age");
+    AgeBackend::with_passphrase(p.clone(), "secret".into()).set("k", "v").unwrap();
+    let reopened = AgeBackend::with_passphrase(p.clone(), "secret".into());
+    assert_eq!(reopened.get("k").unwrap(), "v");
+    assert!(AgeBackend::with_passphrase(p, "wrong".into()).get("k").is_err());
+}
