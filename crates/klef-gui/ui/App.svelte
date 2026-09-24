@@ -1,12 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
-    copyToClipboard,
+    copyKey,
     deleteKey,
-    getKeyValue,
     listKeys,
     previewDotenvImport,
-    recordAccess,
+    setShortcut,
     type DotenvPlan,
   } from "./lib/api";
   import { filterByProject, filterKeys, sortByLastUsed } from "./lib/filter";
@@ -20,14 +19,15 @@
   import type { KeyDto } from "./lib/types";
   import KeychainAccessHelp from "./lib/KeychainAccessHelp.svelte";
   import Modals from "./lib/Modals.svelte";
-  import { FileUp, Pin, PinOff, Plus, Power, Settings as SettingsIcon } from "lucide-svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { pickDotenvFile } from "./lib/dotenvPicker";
+  import HeaderBar from "./lib/HeaderBar.svelte";
   import KeyRow from "./lib/KeyRow.svelte";
   import ProjectChips from "./lib/ProjectChips.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
   import { loadSettings } from "./lib/settings";
   import Toast from "./lib/Toast.svelte";
+  import UnlockVault from "./lib/UnlockVault.svelte";
+  import { Vault } from "./lib/vault.svelte";
 
   let keys = $state<KeyDto[]>([]);
   let loading = $state(true);
@@ -46,6 +46,25 @@
   let pendingDelete = $state<KeyDto | null>(null);
   let dotenvPlan = $state<DotenvPlan | null>(null);
   let pinned = $state(false);
+  let shortcutError = $state<string | null>(null);
+
+  const vault = new Vault();
+
+  function applyShortcut() {
+    setShortcut(loadSettings().shortcut).then(
+      () => (shortcutError = null),
+      (e) => (shortcutError = String(e)),
+    );
+  }
+
+  // Settings may have changed the vault or the shortcut.
+  async function handleSettingsClosed() {
+    showSettings = false;
+    applyShortcut();
+    if (await vault.sync()) await refresh();
+    // Don't leave the previous vault's rows (and Enter-to-copy) live behind the lock.
+    if (vault.locked) keys = [];
+  }
 
   // Pipeline: sort by recency first so the order survives filtering.
   let visibleKeys = $derived(
@@ -69,8 +88,7 @@
 
   async function handleCopy(key: KeyDto) {
     try {
-      const value = await getKeyValue(key.name);
-      await copyToClipboard(value);
+      await copyKey(key.name);
       const s = loadSettings().autoClearSeconds;
       const suffix = s > 0 ? ` — clipboard clears in ${s}s` : "";
       showToast(`${key.name} copied${suffix}`);
@@ -78,7 +96,6 @@
       keys = keys.map((k) =>
         k.name === key.name ? { ...k, last_used_at: now } : k,
       );
-      recordAccess(key.name).catch((e) => console.warn("record_access", e));
     } catch (e) {
       showToast(`error: ${e}`);
     }
@@ -122,6 +139,7 @@
   );
 
   async function handleDotenvDropped(path: string) {
+    if (vault.locked) return; // would import into the Keychain, not the vault
     try {
       dotenvPlan = await previewDotenvImport(path);
     } catch (e) {
@@ -170,6 +188,10 @@
 
   // Refresh + refocus. Called on mount and on each popover-shown event.
   async function refresh() {
+    if (vault.locked) {
+      loading = false;
+      return;
+    }
     try {
       keys = await listKeys();
       loadError = null;
@@ -183,6 +205,7 @@
 
   onMount(() => {
     refresh();
+    applyShortcut();
     // onMount must return a sync teardown (Svelte 5); async setup runs in
     // a fire-and-forget IIFE with teardowns captured by closure.
     let tLife: (() => void) | undefined;
@@ -205,31 +228,8 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <header>
-  <div class="title-row">
-    <div class="title">klef</div>
-    <div class="header-actions">
-      <button
-        class="hdr-btn"
-        class:active={pinned}
-        onclick={() => (pinned = !pinned)}
-        title={pinned ? "Unpin (auto-hide on)" : "Pin (keeps popover open)"}
-      >
-        {#if pinned}<PinOff size={14} />{:else}<Pin size={14} />{/if}
-      </button>
-      <button class="hdr-btn" onclick={pickAndImportDotenv} title="Import .env file">
-        <FileUp size={14} />
-      </button>
-      <button class="hdr-btn" onclick={() => (showSettings = true)} title="Settings">
-        <SettingsIcon size={14} />
-      </button>
-      <button class="hdr-btn primary" onclick={() => (showAddModal = true)} title="Add key">
-        <Plus size={14} />
-      </button>
-      <button class="hdr-btn" onclick={() => invoke("quit_app")} title="Quit klef">
-        <Power size={14} />
-      </button>
-    </div>
-  </div>
+  <HeaderBar bind:pinned vaultName={vault.name} locked={vault.locked} onImport={pickAndImportDotenv}
+    onSettings={() => (showSettings = true)} onAdd={() => (showAddModal = true)} />
   <SearchBar bind:this={searchBar} bind:value={query} />
   <ProjectChips
     {keys}
@@ -239,7 +239,11 @@
 </header>
 
 <main>
-  {#if loading}
+  {#if shortcutError}<div class="warn">Shortcut unavailable: {shortcutError}. Pick another in Settings.</div>{/if}
+  {#if vault.locked && vault.wanted}
+    <UnlockVault path={vault.wanted} onUnlock={(p) => vault.unlock(p).then(refresh)}
+      onUseKeychain={() => vault.forget().then(refresh)} />
+  {:else if loading}
     <div class="empty">Loading…</div>
   {:else if loadError && isKeychainDenied(loadError)}
     <KeychainAccessHelp onRetry={refresh} />
@@ -276,7 +280,7 @@
   onAddDone={handleAdded}
   onEditClose={() => (editTarget = null)}
   onEditDone={handleSaved}
-  onSettingsClose={() => (showSettings = false)}
+  onSettingsClose={handleSettingsClosed}
   onDeleteCancel={() => (pendingDelete = null)}
   onDeleteConfirm={handleDeleteConfirm}
   onDotenvClose={() => (dotenvPlan = null)}
@@ -285,16 +289,10 @@
 
 <style>
   header { padding: 10px 12px 6px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
-  .title-row { display: flex; align-items: center; justify-content: space-between; }
-  .title { font-weight: 700; font-size: 13px; letter-spacing: -0.01em; }
-  .header-actions { display: flex; gap: 2px; }
-  .hdr-btn { width: 26px; height: 26px; padding: 0; background: transparent; color: var(--text-secondary); border: none; border-radius: var(--radius-sm); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; transition: background 80ms, color 80ms; }
-  .hdr-btn:hover { background: var(--hover); color: var(--text); }
-  .hdr-btn.active { background: var(--accent-bg); color: var(--accent); }
-  .hdr-btn.primary { background: var(--accent); color: #fff; } .hdr-btn.primary:hover { background: var(--accent-hover); }
   main { padding: 6px; }
   .empty { padding: 32px 16px; color: var(--text-secondary); text-align: center; font-size: 12px; line-height: 1.5; }
   .err { color: var(--danger); padding: 16px; font-size: 12px; }
+  .warn { color: var(--danger); background: var(--surface-2); padding: 6px 10px; margin: 0 0 6px; border-radius: var(--radius-sm); font-size: 11px; }
   code { background: var(--surface-2); padding: 1px 5px; border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 11px; }
   strong { color: var(--text); font-weight: 600; }
 </style>

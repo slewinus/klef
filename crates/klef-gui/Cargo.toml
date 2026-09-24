@@ -14,7 +14,6 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 klef-core = { version = "0.3.2", path = "../klef-core" }
 tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
-tauri-plugin-clipboard-manager = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-dialog = "2"
@@ -23,6 +22,14 @@ serde_json = "1"
 # 128-bit session IDs for the dotenv-import flow (server-side plan state).
 # tauri already pulls uuid transitively, so this adds no compile cost.
 uuid = { version = "1", features = ["v4"] }
+zeroize = "1"
+
+# Secret copy writes NSPasteboard directly so it can set the nspasteboard.org
+# concealed/transient markers (see src/clipboard.rs). Already in the tree via
+# tauri; this only enables the NSPasteboard bindings.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSPasteboard"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
 
 [lints]
 workspace = true

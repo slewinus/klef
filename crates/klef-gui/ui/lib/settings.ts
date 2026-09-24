@@ -5,16 +5,27 @@
  * and survives across launches.
  */
 
+import { DEFAULT_SHORTCUT } from "./shortcut";
+
 const STORAGE_KEY = "klef.settings.v1";
 
 export interface Settings {
   /** Seconds before the clipboard auto-clears after a copy. 0 disables. */
   autoClearSeconds: number;
+  /** Global toggle chord, in `global-hotkey` accelerator syntax. */
+  shortcut: string;
+  /** age vault file to use instead of the Keychain; null = Keychain. */
+  vaultPath: string | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   autoClearSeconds: 30,
+  shortcut: DEFAULT_SHORTCUT,
+  vaultPath: null,
 };
+
+const nonEmpty = (v: unknown): string | null =>
+  typeof v === "string" && v.length > 0 ? v : null;
 
 // Autostart state lives in macOS LaunchAgents, not in localStorage. The
 // plugin tracks it via ~/Library/LaunchAgents/<bundle>.plist.
@@ -50,6 +61,8 @@ export function loadSettings(): Settings {
       autoClearSeconds: clampAutoClear(
         parsed.autoClearSeconds ?? DEFAULT_SETTINGS.autoClearSeconds,
       ),
+      shortcut: nonEmpty(parsed.shortcut) ?? DEFAULT_SHORTCUT,
+      vaultPath: nonEmpty(parsed.vaultPath),
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -60,13 +73,9 @@ export function loadSettings(): Settings {
 export function saveSettings(s: Settings): Settings {
   const sanitized: Settings = {
     autoClearSeconds: clampAutoClear(s.autoClearSeconds),
+    shortcut: nonEmpty(s.shortcut) ?? DEFAULT_SHORTCUT,
+    vaultPath: nonEmpty(s.vaultPath),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
   return sanitized;
-}
-
-/** Convert auto-clear setting to milliseconds; 0 means "no auto-clear". */
-export function autoClearMs(s: Settings): number | null {
-  if (s.autoClearSeconds <= 0) return null;
-  return s.autoClearSeconds * 1000;
 }
